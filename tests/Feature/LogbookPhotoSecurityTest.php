@@ -160,6 +160,24 @@ class LogbookPhotoSecurityTest extends TestCase
             ->assertNotFound();
     }
 
+    public function test_photo_endpoint_rejects_paths_outside_the_logbooks_directory(): void
+    {
+        Storage::fake('local');
+
+        $student = $this->makeUser('mahasiswa');
+        $lecturer = $this->makeUser('dosen');
+        $coordinator = $this->makeUser('korlap');
+        $logbook = $this->makeLogbook(
+            $student,
+            $lecturer,
+            $coordinator,
+            'logbooks/../../.env',
+        );
+
+        $this->actingAs($student, 'sanctum')
+            ->get('/api/logbooks/'.$logbook->id.'/photo')
+            ->assertNotFound();
+    }
     public function test_photo_endpoint_returns_not_found_when_private_file_is_missing(): void
     {
         Storage::fake('local');
