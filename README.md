@@ -1,113 +1,211 @@
 # NEXORA Backend
 
-Laravel REST API for **NEXORA**, a PKL (Praktik Kerja Lapangan) logbook and supervision platform.
+Laravel REST API for **NEXORA**, a role-based PKL (Praktik Kerja Lapangan) logbook, review, and supervision platform.
 
-This service powers the [NEXORA Mobile](https://github.com/gusti111/NEXORA-Mobile) Flutter application.
+This repository provides the API consumed by [NEXORA Mobile](https://github.com/gusti111/NEXORA-Mobile).
 
-## Core modules
+## Product capabilities
 
-- Token-based authentication using Laravel Sanctum.
-- Role-based access for Mahasiswa, Dosen, Korlap, and Admin.
-- PKL placement management.
-- Student logbook submissions with optional photo and location data.
-- Lecturer review, approval, and revision history.
-- Korlap monitoring, progress statistics, and PDF/Excel exports.
-- Admin user management and platform statistics.
+| Role | Responsibilities |
+| --- | --- |
+| **Mahasiswa** | View own PKL placement, submit activity logbooks with optional photo and GPS coordinates, track review status, resubmit revisions, and view review history. |
+| **Dosen** | View assigned students and logbooks, approve/reject submissions, request revisions with comments, and maintain review history. |
+| **Korlap** | Monitor assigned students, inspect progress statistics, complete eligible PKL placements, and export PDF/Excel reports. |
+| **Admin** | Manage accounts and PKL placements, reset passwords, inspect logbooks, and view platform statistics. |
 
-## Tech stack
+## Architecture and technology
 
 - PHP 8.2+
 - Laravel 12
-- Laravel Sanctum
+- Laravel Sanctum 4 (personal access tokens)
 - MySQL or SQLite
-- Intervention Image
-- Laravel Excel
-- DomPDF
+- Eloquent ORM and database migrations
+- Intervention Image for uploaded logbook photo processing
+- Laravel Excel for spreadsheet exports
+- DomPDF for PDF reports
+- PHPUnit / Laravel testing utilities
+
+```text
+NEXORA Mobile (Flutter)
+        │
+        │ HTTPS + Authorization: Bearer <token>
+        ▼
+NEXORA Backend (Laravel API)
+        ├── Authentication (Sanctum)
+        ├── Role and active-account middleware
+        ├── User and PKL management
+        ├── Logbook submission and review workflow
+        ├── Report export (PDF / Excel)
+        └── Database and uploaded files
+```
 
 ## Requirements
 
-- PHP 8.2 or newer with the extensions required by Laravel and the packages above.
-- Composer
-- Node.js and npm (for the bundled Vite assets, when needed)
-- A configured database
+- PHP 8.2 or newer.
+- Composer 2.
+- PHP extensions required by Laravel and the packages in `composer.json` (including PDO, SQLite or MySQL support, GD, fileinfo, mbstring, XML, and ZIP).
+- Node.js and npm only when building the bundled Vite assets.
+- MySQL or SQLite database.
 
 ## Local setup
 
-1. Install PHP dependencies:
+### 1. Install dependencies
 
-   ```bash
-   composer install
-   ```
-
-2. Create the local environment file and application key:
-
-   ```bash
-   cp .env.example .env
-   php artisan key:generate
-   ```
-
-3. Configure the database connection in `.env`. For SQLite, create the database file if it does not exist. For MySQL, set `DB_CONNECTION`, `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, and `DB_PASSWORD`.
-
-4. Run migrations:
-
-   ```bash
-   php artisan migrate
-   ```
-
-5. Create the public storage symlink for uploaded logbook photos:
-
-   ```bash
-   php artisan storage:link
-   ```
-
-6. Start the API server:
-
-   ```bash
-   php artisan serve --host=0.0.0.0 --port=8000
-   ```
-
-The API health endpoint is `/up`. The mobile client uses the `/api` prefix.
-
-## Authentication
-
-Send the Sanctum personal access token in the `Authorization` header:
-
-```http
-Authorization: Bearer <access-token>
-Accept: application/json
+```bash
+composer install
 ```
 
-Available roles:
+### 2. Configure the environment
 
-| Role | Scope |
+```bash
+cp .env.example .env
+php artisan key:generate
+```
+
+By default, `.env.example` is configured for SQLite. Create the file if it does not exist:
+
+```bash
+touch database/database.sqlite
+```
+
+For MySQL, update the following values in `.env`:
+
+```dotenv
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=nexora
+DB_USERNAME=your_local_user
+DB_PASSWORD=your_local_password
+```
+
+Never commit `.env` or production credentials.
+
+### 3. Run migrations
+
+```bash
+php artisan migrate
+```
+
+### 4. Prepare public file storage
+
+```bash
+php artisan storage:link
+```
+
+### 5. Start the API
+
+```bash
+php artisan serve --host=0.0.0.0 --port=8000
+```
+
+- Health check: `GET /up`
+- API prefix: `/api`
+- Android emulator base URL: `http://10.0.2.2:8000/api`
+
+Use HTTPS in production. Set `APP_ENV=production`, `APP_DEBUG=false`, a production `APP_URL`, secure database credentials, and a properly configured web server / reverse proxy.
+
+## Authentication and authorization
+
+Public authentication endpoints:
+
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| `POST` | `/api/login` | Authenticate using email or username and password; returns a Sanctum bearer token and user profile. |
+| `POST` | `/api/register` | Register a student account. |
+
+Authenticated endpoint:
+
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| `POST` | `/api/logout` | Revoke the current personal access token. |
+| `GET` | `/api/user` | Validate the current account and return the current profile in the standard `data` response envelope. |
+
+Include the token on protected requests:
+
+```http
+Accept: application/json
+Authorization: Bearer <access-token>
+```
+
+### Role access
+
+| Role | Protected API groups |
 | --- | --- |
-| `mahasiswa` | Own PKL placement and logbooks |
-| `dosen` | Assigned students and their logbook reviews |
-| `korlap` | Students and PKL records assigned to the coordinator |
-| `admin` | User, placement, logbook, and platform administration |
+| `mahasiswa` | Own PKL placement, logbook submission, statistics, revision, and review history. |
+| `dosen` | Assigned student list, assigned logbooks, review actions, and permitted review history. |
+| `korlap` | Assigned students and logbooks, statistics, PKL completion, and report exports. |
+| `admin` | User management, PKL placement management, platform statistics, and logbook oversight. |
 
-## API route groups
+Protected routes use `auth:sanctum` together with role middleware. Active-account checks reject disabled users. Controllers additionally scope queries to the authenticated student's, lecturer's, or coordinator's assignments; role middleware alone is not treated as data ownership authorization.
 
-- Public: registration and login.
-- Authenticated: logout and the current-user endpoint.
-- Admin: user and PKL management, statistics, and logbook oversight.
-- Mahasiswa: own placements, logbook submission, revision, statistics, and history.
-- Dosen: assigned logbooks, student list, and review actions.
-- Korlap: assigned logbooks and students, statistics, completion, and report exports.
+### Token lifecycle
 
-Refer to `routes/api.php` for the current route definitions and middleware requirements.
+- Sanctum stores token hashes in the database; the plain-text token is returned to the client at issuance.
+- The mobile application stores its token in platform secure storage.
+- The mobile client calls `/api/logout` and the backend deletes the token used for the request.
+- Admin password resets revoke the target user's existing personal access tokens.
+- The current Sanctum expiration setting is 10,080 minutes (seven days); update `config/sanctum.php` deliberately if policy changes.
+- Run `php artisan sanctum:prune-expired --hours=24` periodically in production to remove expired token records.
+
+## Main API modules
+
+| Module | Endpoints |
+| --- | --- |
+| Authentication | `POST /login`, `POST /register`, `POST /logout`, `GET /user` |
+| Student PKL | `GET /pkls` |
+| Student logbook | `GET /logbooks`, `POST /logbooks`, `PUT /logbooks/{id}/resubmit`, `GET /logbooks/statistics`, `GET /logbooks/{id}/history` |
+| Lecturer | `GET /dosen/logbooks`, `GET /dosen/mahasiswa`, `PATCH /dosen/logbooks/{id}/review` |
+| Coordinator | `GET /korlap/logbooks`, `GET /korlap/statistics`, `GET /korlap/mahasiswa`, `PUT /korlap/pkls/{id}/complete`, PDF/Excel exports |
+| Administrator | `/users`, `/admin/users/{id}`, `/pkls`, `/admin/pkls`, `/admin/logbooks`, `/admin/statistics` and related management routes |
+
+See `routes/api.php` for the canonical route definitions and middleware.
+
+## Logbook workflow and data rules
+
+1. An administrator creates a PKL placement and assigns the student, lecturer, and coordinator.
+2. A student can submit a logbook only for their own active PKL placement and within the allowed activity date range.
+3. A new logbook starts with `pending` status.
+4. The assigned lecturer can approve, reject, or request a revision. A revision request requires a non-empty comment.
+5. Each lecturer review is recorded in `logbook_reviews`.
+6. A student can resubmit a logbook only when its status is `revision_requested`; resubmission resets the current status to `pending`.
+7. A coordinator can complete a PKL after at least one logbook has been approved.
+
+Logbook photos are validated as images (up to 10 MB on upload) and processed to a target size of at most 500 KB. Latitude and longitude are optional and validated against geographic ranges.
+
+## Data protection and backup policy
+
+- Do not commit `.env`, database dumps, access tokens, real student records, uploaded documents, or private evidence.
+- `database/backup/` is ignored by Git and local backup artifacts are removed from the proposed Phase 1 branch. Use sanitized fixtures or model factories for tests.
+- Keep operational backups outside the source repository, encrypt them at rest, restrict access, and define a retention policy.
+- **Photo privacy remains a production hardening item:** logbook photos currently use Laravel's public filesystem disk. Do not use real personal or sensitive evidence in production until private authenticated file delivery and authorization checks are implemented.
+- Hard deletion of users with PKL assignments or review history is blocked to preserve academic records. Deactivate such accounts instead.
 
 ## Tests
 
-Run the automated test suite with:
+Run the full automated suite:
 
 ```bash
 php artisan test
 ```
 
-## Data and backup handling
+Current feature tests cover:
 
-Do not commit `.env`, production database dumps, uploaded user documents, access tokens, or other operational data. Keep local database backups and uploaded files outside the public source repository. Use sanitized fixtures or factories for automated tests.
+- Login for all four supported roles.
+- The authenticated user profile response.
+- Cross-role request rejection and inactive-account rejection.
+- Token revocation after logout.
+- Token revocation after administrator password reset.
+- Protection of user records with PKL history.
+- Student logbook ownership isolation.
+- Lecturer review ownership isolation.
+- Logbook activity-title mass assignment regression.
+
+## Continuous integration
+
+GitHub Actions runs Composer validation and the Laravel test suite on pushes to `main` / `fix/**` and on pull requests targeting `main`.
+
+Workflow: `.github/workflows/laravel-ci.yml`.
 
 ## Related repository
 
@@ -115,4 +213,4 @@ Do not commit `.env`, production database dumps, uploaded user documents, access
 
 ## Project status
 
-NEXORA is under active development. API contracts and deployment configuration may change as the mobile and backend repositories evolve.
+NEXORA is under active development. Review API contracts, database migrations, file-privacy requirements, and deployment configuration before production releases.
