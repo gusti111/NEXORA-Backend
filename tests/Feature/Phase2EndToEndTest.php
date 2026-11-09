@@ -110,8 +110,13 @@ class Phase2EndToEndTest extends TestCase
         $lecturerInbox = $this->withToken($lecturerToken)
             ->getJson('/api/notifications')
             ->assertOk()
-            ->assertJsonPath('unread_count', 1, json_encode($lecturerInbox->json()))
             ->assertJsonCount(1, 'data');
+
+        $this->assertSame(
+            1,
+            $lecturerInbox->json('unread_count'),
+            json_encode($lecturerInbox->json())
+        );
 
         $this->assertSame(
             'logbook_submitted',
