@@ -96,10 +96,21 @@ class Phase2EndToEndTest extends TestCase
         $lecturerToken = $lecturerLogin->json('token');
         $this->assertNotEmpty($lecturerToken);
 
+        // Verify that the second bearer token resolves to the lecturer before
+        // checking the notification inbox.
+        $this->withToken($lecturerToken)
+            ->getJson('/api/user')
+            ->assertOk()
+            ->assertJsonPath('data.id', $lecturer->id);
+
+        $lecturerNotification = $lecturer->notifications()->firstOrFail();
+        $this->assertNull($lecturerNotification->read_at);
+        $this->assertSame(1, $lecturer->unreadNotifications()->count());
+
         $lecturerInbox = $this->withToken($lecturerToken)
             ->getJson('/api/notifications')
             ->assertOk()
-            ->assertJsonPath('unread_count', 1)
+            ->assertJsonPath('unread_count', 1, json_encode($lecturerInbox->json()))
             ->assertJsonCount(1, 'data');
 
         $this->assertSame(
