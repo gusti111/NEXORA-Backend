@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Notifications\LogbookReviewed;
 use App\Notifications\StudentLogbookSubmitted;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Auth;
 use Tests\TestCase;
 
 class Phase2EndToEndTest extends TestCase
@@ -96,6 +97,11 @@ class Phase2EndToEndTest extends TestCase
         $lecturerToken = $lecturerLogin->json('token');
         $this->assertNotEmpty($lecturerToken);
 
+        // The test application instance is reused across requests. Flush the
+        // cached guard so this request authenticates from the lecturer token,
+        // as a separate real HTTP request would.
+        Auth::forgetGuards();
+
         // Verify that the second bearer token resolves to the lecturer before
         // checking the notification inbox.
         $this->flushHeaders()->withToken($lecturerToken)
@@ -148,6 +154,9 @@ class Phase2EndToEndTest extends TestCase
             'notifiable_id' => $student->id,
             'type' => LogbookReviewed::class,
         ]);
+
+        // Switch the reused test application back to the student's bearer.
+        Auth::forgetGuards();
 
         // Student receives and acknowledges the review notification.
         $studentInbox = $this->flushHeaders()->withToken($studentToken)
