@@ -263,9 +263,9 @@
               "pm.test('Lecturer notification inbox succeeds', () => pm.response.to.have.status(200));",
               "const body = pm.response.json();",
               "pm.expect(body).to.have.property('unread_count');",
-              "const item = (body.data || []).find((n) => n.data && n.data.event === 'logbook_submitted' && String(n.data.logbook_id) === pm.environment.get('logbookId'));",
-              "pm.expect(item, 'Submission notification for this logbook').to.exist;",
-              "pm.environment.set('lecturerNotificationId', item.id);"
+              "const matches = (body.data || []).filter((n) => n.data && n.data.event === 'logbook_submitted' && String(n.data.logbook_id) === pm.environment.get('logbookId'));",
+              "pm.expect(matches, 'Exactly one submission notification for this logbook').to.have.lengthOf(1);",
+              "pm.environment.set('lecturerNotificationId', matches[0].id);"
             ]
           }
         }
