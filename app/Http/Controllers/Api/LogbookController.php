@@ -272,10 +272,14 @@ class LogbookController extends Controller
     // MAHASISWA MENGIRIM ULANG LOGBOOK SETELAH REVISI
     public function resubmit(Request $request, string $id)
     {
-        // MEMASTIKAN LOGBOOK MILIK MAHASISWA
-        $logbook = Logbook::whereHas('pkl', function ($query) use ($request) {
-            $query->where('mahasiswa_id', $request->user()->id);
-        })->findOrFail($id);
+        $user = $request->user();
+
+        // MEMASTIKAN LOGBOOK MILIK MAHASISWA DAN MEMUAT PENEMPATANNYA
+        $logbook = Logbook::whereHas('pkl', function ($query) use ($user) {
+            $query->where('mahasiswa_id', $user->id);
+        })
+            ->with('pkl.dosen', 'pkl.mahasiswa')
+            ->findOrFail($id);
 
         if ($logbook->status !== 'revision_requested') {
             return response()->json([
@@ -336,7 +340,6 @@ class LogbookController extends Controller
 
             $currentValue = $logbook->{$field};
 
-            // MEMBANDINGKAN TANGGAL
             if ($field === 'tanggal_kegiatan') {
                 $currentValue = $currentValue
                     ? $currentValue->toDateString()
@@ -347,7 +350,6 @@ class LogbookController extends Controller
                     : null;
             }
 
-            // MEMBANDINGKAN KOORDINAT GPS
             if (in_array($field, ['latitude', 'longitude'], true)) {
                 $currentValue = $currentValue !== null
                     ? (float) $currentValue
@@ -383,7 +385,7 @@ class LogbookController extends Controller
         $oldFotoPath = $logbook->foto;
         $newFotoPath = null;
 
-        // KOMPRESI DAN SIMPAN FOTO BARU
+        // KOMPRESI DAN SIMPAN FOTO BARU SEBELUM TRANSAKSI DATABASE
         if ($request->hasFile('foto')) {
             $newFotoPath = $this->compressPhoto($request->file('foto'));
             $data['foto'] = $newFotoPath;
@@ -394,15 +396,36 @@ class LogbookController extends Controller
         $data['catatan_dosen'] = null;
 
         try {
-            $updated = $logbook->update($data);
+            // Kunci baris logbook agar dua permintaan resubmit tidak memproses
+            // revisi yang sama secara bersamaan. Update dan notifikasi harus
+            // berhasil bersama-sama atau seluruh transaksi dibatalkan.
+            $updatedLogbook = DB::transaction(function () use ($id, $user, $data) {
+                $lockedLogbook = Logbook::whereHas('pkl', function ($query) use ($user) {
+                    $query->where('mahasiswa_id', $user->id);
+                })
+                    ->with('pkl.dosen', 'pkl.mahasiswa')
+                    ->lockForUpdate()
+                    ->findOrFail($id);
 
-            if (!$updated) {
-                throw new \RuntimeException(
-                    'Gagal memperbarui data logbook.'
+                if ($lockedLogbook->status !== 'revision_requested') {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'status' => 'Logbook tidak lagi berada pada status revisi dan tidak dapat dikirim ulang.',
+                    ]);
+                }
+
+                $lockedLogbook->update($data);
+
+                // Notifikasi dikirim kepada dosen pembimbing dari penempatan
+                // PKL yang sama, bukan kepada dosen dari input pengguna.
+                $lockedLogbook->pkl?->dosen?->notify(
+                    new StudentLogbookSubmitted($lockedLogbook, true)
                 );
-            }
+
+                return $lockedLogbook->fresh();
+            });
         } catch (\Throwable $e) {
-            // HAPUS FOTO BARU JIKA UPDATE DATABASE GAGAL
+            // Jika update atau penyimpanan notifikasi gagal, hapus foto baru
+            // dan pertahankan foto lama yang masih direferensikan database.
             if ($newFotoPath !== null) {
                 Storage::disk('local')->delete($newFotoPath);
             }
@@ -410,14 +433,14 @@ class LogbookController extends Controller
             throw $e;
         }
 
-        // HAPUS FOTO LAMA SETELAH UPDATE BERHASIL
+        // Hapus foto lama hanya setelah transaksi database berhasil commit.
         if ($newFotoPath !== null && $oldFotoPath) {
             Storage::disk('local')->delete($oldFotoPath);
         }
 
         return response()->json([
-            'message' => 'Logbook berhasil diperbaiki dan dikirim ulang.',
-            'data' => $logbook->fresh(),
+            'message' => 'Logbook berhasil diperbaiki dan dikirim ulang. Dosen pembimbing telah diberi notifikasi.',
+            'data' => $updatedLogbook,
         ]);
     }
 
