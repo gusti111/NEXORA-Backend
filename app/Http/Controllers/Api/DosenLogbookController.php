@@ -74,7 +74,14 @@ class DosenLogbookController extends Controller
                 'komentar' => $validated['komentar'] ?? null,
             ]);
 
-            return $logbook->fresh();
+            // Status, review history, and the student's database
+            // notification must commit together. A failed notification write
+            // rolls back the review so it can be retried without data drift.
+            $reviewed = $logbook->fresh();
+            $reviewed->loadMissing('pkl.mahasiswa');
+            $reviewed->pkl?->mahasiswa?->notify(new LogbookReviewed($reviewed));
+
+            return $reviewed;
         });
 
         if ($result === false) {
@@ -82,9 +89,6 @@ class DosenLogbookController extends Controller
                 'message' => 'Logbook hanya dapat diperiksa jika berstatus pending.',
             ], 422);
         }
-
-        $result->loadMissing('pkl.mahasiswa');
-        $result->pkl?->mahasiswa?->notify(new LogbookReviewed($result));
 
         return response()->json([
             'message' => 'Pemeriksaan logbook berhasil disimpan.',
