@@ -173,6 +173,7 @@ See `routes/api.php` for the canonical route definitions and middleware.
 - Authenticated notification endpoints: `GET /api/notifications`, `GET /api/notifications/unread-count`, `PATCH /api/notifications/{id}/read`, and `PATCH /api/notifications/read-all`.
 - Notification queries and read-state updates are scoped to the authenticated user.
 - Notifications are currently stored in Laravel's database notification table and displayed inside the mobile app. FCM/APNs push delivery is not configured in this phase.
+
 ## Logbook workflow and data rules
 
 1. An administrator creates a PKL placement and assigns the student, lecturer, and coordinator.
