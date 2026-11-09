@@ -118,7 +118,7 @@ class ApiAuthorizationTest extends TestCase
             ->assertOk();
 
         $this->assertDatabaseCount('personal_access_tokens', 0);
-        $this->assertTrue(\\Illuminate\\Support\\Facades\\Hash::check(
+        $this->assertTrue(Hash::check(
             'new-password-123',
             $target->fresh()->password,
         ));
