@@ -199,6 +199,15 @@ Logbook photos are validated as images (up to 10 MB on upload), converted to JPE
   The migration verifies file hashes before deleting a public duplicate. Missing files or mismatches are reported and return a non-zero exit status for manual review. Run the command with an account that has permission to read the public files and write to `storage/app/private`.
 - Hard deletion of users with PKL assignments or review history is blocked to preserve academic records. Deactivate such accounts instead.
 
+## Staging integration
+
+A staging runbook and Postman collection are available for the Mobile–Backend Phase 2 contract:
+
+- [Staging integration runbook](docs/STAGING_INTEGRATION_RUNBOOK.md)
+- [Postman collection](postman/NEXORA-Phase-2-Staging.postman_collection.json)
+
+The collection contains no real credentials. Configure a private Postman environment with the staging API URL, dummy student/lecturer accounts, a PKL placement ID, and a valid activity date before running it. Staging HTTP tests have not been marked passed until a real staging endpoint is configured and the collection is executed.
+
 ## Tests
 
 Run the full automated suite:
@@ -220,7 +229,10 @@ Current feature tests cover:
 - Logbook activity-title mass assignment regression.
 - Database notification delivery for submission and review events.
 - Notification inbox ownership, unread count, and read-state transitions.
+- Transaction rollback when database notification persistence fails during submission or lecturer review.
 - Idempotent submission replay, including after the PKL placement has been completed.
+- Rejection of idempotency-key reuse across different PKL placements.
+- Correct MIME response headers for legacy private PNG and WEBP photos.
 
 ## Continuous integration
 
