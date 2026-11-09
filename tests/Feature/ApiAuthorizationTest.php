@@ -6,6 +6,7 @@ use App\Models\Logbook;
 use App\Models\Pkl;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
 class ApiAuthorizationTest extends TestCase
@@ -138,6 +139,7 @@ class ApiAuthorizationTest extends TestCase
         $this->assertDatabaseHas('users', ['id' => $student->id]);
         $this->assertDatabaseHas('pkls', ['mahasiswa_id' => $student->id]);
     }
+
     public function test_student_logbook_list_is_scoped_to_the_authenticated_student(): void
     {
         $studentA = $this->makeUser('mahasiswa');
