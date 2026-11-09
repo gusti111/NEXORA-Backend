@@ -397,7 +397,9 @@ class LogbookController extends Controller
             abort(404);
         }
 
-        return response()->file($disk->path($path), [
+        return response()->stream(function () use ($disk, $path) {
+            echo $disk->get($path);
+        }, 200, [
             'Content-Type' => 'image/jpeg',
             'Cache-Control' => 'private, no-store, max-age=0',
             'X-Content-Type-Options' => 'nosniff',
