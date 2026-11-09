@@ -69,7 +69,7 @@ class LogbookPhotoSecurityTest extends TestCase
             ->get('/api/logbooks/'.$logbook->id.'/photo')
             ->assertOk()
             ->assertHeader('Content-Type', 'image/jpeg')
-            ->assertHeader('Cache-Control', 'private, no-store, max-age=0')
+            ->assertHeader('Cache-Control', 'max-age=0, no-store, private')
             ->assertHeader('X-Content-Type-Options', 'nosniff')
             ->assertStreamedContent('private-jpeg-fixture');
     }
