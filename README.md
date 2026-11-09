@@ -165,6 +165,8 @@ See `routes/api.php` for the canonical route definitions and middleware.
 
 - Mobile submissions may include an `idempotency_key` UUID. The backend stores it on the logbook under a unique constraint.
 - Replaying the same key for the same PKL returns the already-created logbook with HTTP `200` and `duplicate: true`; it does not create a second logbook or send another submission notification.
+- Logbook creation and the lecturer's database notification are committed in one database transaction; a notification-write failure rolls back the logbook insert so a retry can safely start again.
+- Concurrent requests using the same key are arbitrated by the database unique index and reconciled to the already-created record.
 - A key already bound to a different PKL is rejected with HTTP `409`.
 - The assigned lecturer receives a database notification when a new logbook is accepted.
 - The student receives a database notification after the lecturer records an approval, revision request, or rejection.
