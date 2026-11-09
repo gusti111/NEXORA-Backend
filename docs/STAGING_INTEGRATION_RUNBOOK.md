@@ -6,6 +6,77 @@ Dokumen ini dipakai untuk menguji kontrak antara Flutter Mobile dan Laravel Back
 
 Belum ada staging URL atau deployment workflow yang terdeteksi di repository ketika dokumen ini diperbarui. Karena itu, pengujian HTTP terhadap server nyata belum dijalankan. Gunakan environment staging terisolasi; jangan mengarahkan collection ini ke produksi.
 
+## Local staging tanpa hosting (Windows)
+
+Untuk pengujian awal, Laravel dapat berjalan langsung di PC Windows. Tidak diperlukan VPS, domain publik, atau layanan hosting.
+
+### Prasyarat
+
+- PHP 8.2+ dengan ekstensi `pdo_sqlite`, `fileinfo`, dan `gd` aktif.
+- Composer 2.
+- Repository NEXORA Backend sudah di-clone dan dependency Composer dapat diunduh.
+- Flutter SDK dan Android SDK tersedia pada komputer yang menjalankan aplikasi.
+
+### Jalankan backend lokal
+
+Dari PowerShell pada folder repository Backend:
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+.\scripts\start-local-staging.ps1
+```
+
+Script akan:
+- Membuat `.env` dari `.env.example` hanya jika belum tersedia.
+- Menolak berjalan jika `APP_ENV` bukan `local`, database bukan SQLite, atau ada `DB_URL` eksternal.
+- Memastikan file SQLite lokal tersedia dan PHP extensions penting aktif.
+- Memasang Composer dependencies bila `vendor/` belum ada.
+- Membersihkan config cache, menjalankan migrasi tanpa menghapus database, serta menjalankan seeder dummy lokal.
+- Menyalakan Laravel pada `0.0.0.0:8000`.
+
+Script **tidak** menjalankan `migrate:fresh`, tidak menghapus database, dan tidak mengubah konfigurasi database yang sudah ada secara diam-diam. Jika file `.env` kamu memakai MySQL, script akan berhenti. Buat salinan kerja lokal dengan SQLite terlebih dahulu; jangan mengubah konfigurasi server bersama/produksi.
+
+### Akun demo lokal
+
+| Role | Email / login | Password |
+| --- | --- | --- |
+| Mahasiswa | `student@nexora.local` | `NexoraLocal!2026` |
+| Dosen | `lecturer@nexora.local` | `NexoraLocal!2026` |
+| Korlap | `coordinator@nexora.local` | `NexoraLocal!2026` |
+
+Seeder membuat satu PKL aktif yang menghubungkan mahasiswa, dosen, dan korlap. Seeder boleh dijalankan ulang dan dibatasi pada `APP_ENV=local` atau `testing`. Credential ini bersifat publik/dummy: jangan gunakan pada server publik, staging bersama, atau produksi.
+
+### URL koneksi
+
+- Health check di PC: `http://127.0.0.1:8000/up`
+- Postman di PC: `http://127.0.0.1:8000/api`
+- Android Emulator (AVD): `http://10.0.2.2:8000/api`
+- Android fisik: gunakan IP private PC yang ditampilkan oleh script, misalnya `http://192.168.1.20:8000/api` (ganti dengan IP aktual).
+
+PC dan HP harus berada pada jaringan Wi-Fi yang sama. Jika Windows Firewall meminta izin, izinkan PHP pada **Private networks saja**; jangan mematikan firewall secara global dan jangan membuka port ini ke jaringan publik. Server PHP built-in ini hanya untuk pengembangan lokal.
+
+Jalankan Flutter dari repository Mobile dengan URL yang sesuai:
+
+```powershell
+# Android Emulator
+flutter run --dart-define=API_BASE_URL=http://10.0.2.2:8000/api
+
+# Android fisik — ganti dengan IPv4 private PC yang benar
+flutter run --dart-define=API_BASE_URL=http://192.168.1.20:8000/api
+```
+
+Pastikan build yang dipakai adalah debug build. Release manifest tidak mengaktifkan cleartext HTTP; deployment publik wajib memakai HTTPS.
+
+### Jalankan Postman pada local staging
+
+Import collection lalu ubah `baseUrl` pada environment privat menjadi:
+
+```text
+http://127.0.0.1:8000/api
+```
+
+Isi kredensial mahasiswa/dosen dummy di atas. Set `activityDate` ke tanggal hari ini dan `idempotencyKey` ke UUID baru sebelum setiap sesi. Jalankan request 01–12 secara berurutan.
+
 ## 1. Siapkan backend staging
 
 1. Deploy branch `main` dari [NEXORA Backend](https://github.com/gusti111/NEXORA-Backend) ke staging. Jangan deploy branch fitur Phase 2 yang sudah selesai di-merge.
