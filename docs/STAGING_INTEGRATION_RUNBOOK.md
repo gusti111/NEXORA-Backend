@@ -107,10 +107,10 @@ Jangan memakai data mahasiswa, dosen, perusahaan, foto, token, atau password pro
 
 Import `postman/NEXORA-Phase-2-Staging.postman_collection.json`, lalu buat environment privat dengan variabel:
 - `baseUrl`: URL staging lengkap dengan suffix `/api`, misalnya `https://staging.example.test/api`;
-- `studentLogin` dan `studentPassword`;
-- `lecturerLogin` dan `lecturerPassword`;
-- `idempotencyKey`: UUID baru untuk setiap sesi pengujian;
-- `activityDate`: tanggal yang valid di periode PKL.
+- `studentLogin=student@nexora.local` dan `studentPassword=NexoraLocal!2026` untuk local staging;
+- `lecturerLogin=lecturer@nexora.local` dan `lecturerPassword=NexoraLocal!2026` untuk local staging;
+- `idempotencyKey`: collection membuat UUID baru otomatis jika nilainya kosong/tidak valid; request replay menggunakan key yang sama;
+- `activityDate`: collection mengisi tanggal lokal hari ini jika kosong. Pastikan tanggal tersebut masih berada dalam periode PKL.
 
 Jalankan request berurutan 01–12. Collection akan menyimpan token, PKL ID, logbook ID, dan notification ID di environment lokal Postman. Jangan commit environment export karena berisi credential/token.
 
