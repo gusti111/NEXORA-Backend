@@ -93,13 +93,22 @@ class ApiAuthorizationTest extends TestCase
     public function test_logout_revokes_the_current_sanctum_token(): void
     {
         $user = $this->makeUser('mahasiswa');
-        $token = $user->createToken('nexora-test')->plainTextToken;
+        $issuedToken = $user->createToken('nexora-test');
+        $plainTextToken = $issuedToken->plainTextToken;
 
-        $this->withToken($token)
+        $this->withToken($plainTextToken)
             ->postJson('/api/logout')
             ->assertOk();
 
-        $this->withToken($token)
+        $this->assertDatabaseMissing('personal_access_tokens', [
+            'id' => $issuedToken->accessToken->getKey(),
+        ]);
+
+        // Reset the guard between requests so the second request resolves
+        // authentication from the now-revoked token, not a cached test guard.
+        Auth::forgetGuards();
+
+        $this->withToken($plainTextToken)
             ->getJson('/api/user')
             ->assertUnauthorized();
     }
