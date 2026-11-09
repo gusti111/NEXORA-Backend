@@ -89,6 +89,55 @@ class ApiAuthorizationTest extends TestCase
             ->assertJsonPath('message', 'Akun kamu sedang dinonaktifkan. Hubungi Admin.');
     }
 
+    public function test_logout_revokes_the_current_sanctum_token(): void
+    {
+        $user = $this->makeUser('mahasiswa');
+        $token = $user->createToken('nexora-test')->plainTextToken;
+
+        $this->withToken($token)
+            ->postJson('/api/logout')
+            ->assertOk();
+
+        $this->withToken($token)
+            ->getJson('/api/user')
+            ->assertUnauthorized();
+    }
+
+    public function test_admin_password_reset_revokes_all_tokens_for_the_target_user(): void
+    {
+        $admin = $this->makeUser('admin');
+        $target = $this->makeUser('mahasiswa');
+        $target->createToken('mobile-device');
+        $target->createToken('second-device');
+
+        $this->actingAs($admin, 'sanctum')
+            ->putJson('/api/admin/users/'.$target->id.'/reset-password', [
+                'password' => 'new-password-123',
+            ])
+            ->assertOk();
+
+        $this->assertDatabaseCount('personal_access_tokens', 0);
+        $this->assertTrue(\\Illuminate\\Support\\Facades\\Hash::check(
+            'new-password-123',
+            $target->fresh()->password,
+        ));
+    }
+
+    public function test_account_with_pkl_history_cannot_be_deleted(): void
+    {
+        $student = $this->makeUser('mahasiswa');
+        $lecturer = $this->makeUser('dosen');
+        $coordinator = $this->makeUser('korlap');
+        $admin = $this->makeUser('admin');
+        $this->makePkl($student, $lecturer, $coordinator);
+
+        $this->actingAs($admin, 'sanctum')
+            ->deleteJson('/api/admin/users/'.$student->id)
+            ->assertUnprocessable();
+
+        $this->assertDatabaseHas('users', ['id' => $student->id]);
+        $this->assertDatabaseHas('pkls', ['mahasiswa_id' => $student->id]);
+    }
     public function test_student_logbook_list_is_scoped_to_the_authenticated_student(): void
     {
         $studentA = $this->makeUser('mahasiswa');
