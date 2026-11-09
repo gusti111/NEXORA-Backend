@@ -1,9 +1,9 @@
 <?php
 
-namespace Tests\\Unit;
+namespace Tests\Unit;
 
-use App\\Models\\Logbook;
-use Tests\\TestCase;
+use App\Models\Logbook;
+use Tests\TestCase;
 
 class LogbookMassAssignmentTest extends TestCase
 {
