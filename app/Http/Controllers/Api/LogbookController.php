@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Logbook;
 use App\Notifications\StudentLogbookSubmitted;
 use Illuminate\Http\Request;
+use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Intervention\Image\ImageManager;
@@ -194,30 +196,72 @@ class LogbookController extends Controller
         }
 
         try {
-            $logbook = Logbook::create([
-                'pkl_id' => $pkl->id,
-                'idempotency_key' => $validated['idempotency_key'] ?? null,
-                'tanggal_kegiatan' => $validated['tanggal_kegiatan'],
-                'judul_kegiatan' => $validated['judul_kegiatan'],
-                'deskripsi_kegiatan' => $validated['deskripsi_kegiatan'],
-                'foto' => $fotoPath,
-                'latitude' => $validated['latitude'] ?? null,
-                'longitude' => $validated['longitude'] ?? null,
-                'status' => 'pending',
-            ]);
+            // The logbook row and its database notification must commit or
+            // roll back together. This prevents an accepted logbook from
+            // being left without a lecturer notification after a DB error.
+            $logbook = DB::transaction(function () use ($pkl, $validated, $fotoPath) {
+                $created = Logbook::create([
+                    'pkl_id' => $pkl->id,
+                    'idempotency_key' => $validated['idempotency_key'] ?? null,
+                    'tanggal_kegiatan' => $validated['tanggal_kegiatan'],
+                    'judul_kegiatan' => $validated['judul_kegiatan'],
+                    'deskripsi_kegiatan' => $validated['deskripsi_kegiatan'],
+                    'foto' => $fotoPath,
+                    'latitude' => $validated['latitude'] ?? null,
+                    'longitude' => $validated['longitude'] ?? null,
+                    'status' => 'pending',
+                ]);
+
+                $pkl->loadMissing('dosen', 'mahasiswa');
+                $pkl->dosen?->notify(new StudentLogbookSubmitted(
+                    $created->load('pkl.mahasiswa')
+                ));
+
+                return $created;
+            });
+        } catch (QueryException $e) {
+            // A concurrent retry can pass the initial lookup before the
+            // first request commits. The unique index arbitrates the race;
+            // reconcile the winner instead of surfacing a duplicate error.
+            if ($fotoPath !== null) {
+                Storage::disk('local')->delete($fotoPath);
+            }
+
+            $sqlState = $e->errorInfo[0] ?? (string) $e->getCode();
+            $driverCode = $e->errorInfo[1] ?? null;
+            $isUniqueViolation = in_array($sqlState, ['23000', '23505'], true)
+                || in_array($driverCode, [19, 1062], true);
+
+            if ($isUniqueViolation && !empty($validated['idempotency_key'])) {
+                $existing = Logbook::where(
+                    'idempotency_key',
+                    $validated['idempotency_key']
+                )->first();
+
+                if ($existing) {
+                    if ((int) $existing->pkl_id !== (int) $pkl->id) {
+                        return response()->json([
+                            'message' => 'Kunci pengiriman sudah digunakan oleh data lain.',
+                        ], 409);
+                    }
+
+                    return response()->json([
+                        'message' => 'Logbook ini sudah pernah diterima.',
+                        'data' => $existing,
+                        'duplicate' => true,
+                    ]);
+                }
+            }
+
+            throw $e;
         } catch (\Throwable $e) {
-            // HAPUS FOTO JIKA PEMBUATAN LOGBOOK GAGAL
+            // Hapus foto jika transaksi logbook/notifikasi gagal.
             if ($fotoPath !== null) {
                 Storage::disk('local')->delete($fotoPath);
             }
 
             throw $e;
         }
-
-        $pkl->loadMissing('dosen', 'mahasiswa');
-        $pkl->dosen?->notify(new StudentLogbookSubmitted(
-            $logbook->load('pkl.mahasiswa')
-        ));
 
         return response()->json([
             'message' => 'Logbook berhasil dikirim.',
