@@ -10,7 +10,10 @@ class StudentLogbookSubmitted extends Notification
 {
     use Queueable;
 
-    public function __construct(public readonly Logbook $logbook)
+    public function __construct(
+        public readonly Logbook $logbook,
+        public readonly bool $isResubmission = false,
+    )
     {
     }
 
@@ -23,9 +26,13 @@ class StudentLogbookSubmitted extends Notification
     {
         return [
             'event' => 'logbook_submitted',
-            'title' => 'Logbook baru menunggu pemeriksaan',
+            'title' => $this->isResubmission
+                ? 'Logbook revisi menunggu pemeriksaan'
+                : 'Logbook baru menunggu pemeriksaan',
             'message' => ($this->logbook->pkl?->mahasiswa?->name ?? 'Mahasiswa')
-                .' mengirim logbook: '.$this->logbook->judul_kegiatan,
+                .($this->isResubmission ? ' mengirim ulang logbook: ' : ' mengirim logbook: ')
+                .$this->logbook->judul_kegiatan,
+            'submission_type' => $this->isResubmission ? 'resubmission' : 'initial',
             'logbook_id' => $this->logbook->id,
             'status' => $this->logbook->status,
             'action_url' => '/dosen/logbooks/'.$this->logbook->id,
