@@ -22,7 +22,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
 
     Route::get('/user', function (Request $request) {
-        return $request->user();
+        return response()->json([
+            'message' => 'Profil pengguna berhasil divalidasi.',
+            'data' => $request->user(),
+        ]);
     })->middleware(EnsureActive::class);
 
     // KELOLA AKUN DOSEN DAN KORLAP (ADMIN)
