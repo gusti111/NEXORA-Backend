@@ -37,3 +37,30 @@ jobs:
 
       - name: Run Laravel test suite
         run: php artisan test
+
+  local-staging-script:
+    name: Validate Windows local-staging script
+    runs-on: windows-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Parse PowerShell script
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          $scriptPath = Join-Path $PWD 'scripts/start-local-staging.ps1'
+          $null = [System.Management.Automation.Language.Parser]::ParseFile(
+            $scriptPath,
+            [ref]$tokens,
+            [ref]$errors
+          )
+
+          if ($errors.Count -gt 0) {
+            $errors | Format-List *
+            throw "PowerShell parser reported errors in start-local-staging.ps1"
+          }
+
+          Write-Host "PowerShell syntax is valid."
