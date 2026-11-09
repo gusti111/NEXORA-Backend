@@ -387,7 +387,12 @@ class LogbookController extends Controller
         $logbook = $query->firstOrFail();
         $path = $logbook->foto;
 
-        if (!$path || !Str::startsWith($path, 'logbooks/')) {
+        // Accept only a simple image filename beneath the logbooks directory.
+        // Never allow database path values to traverse into other private files.
+        if (
+            !$path ||
+            !preg_match('#\\Alogbooks/[A-Za-z0-9._-]+\\.(?:jpe?g|png|webp)\\z#i', $path)
+        ) {
             abort(404);
         }
 
