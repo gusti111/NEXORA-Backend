@@ -209,6 +209,26 @@ A staging runbook and Postman collection are available for the Mobile–Backend 
 
 The collection contains no real credentials. Configure a private Postman environment with the staging API URL, dummy student/lecturer accounts, a PKL placement ID, and a valid activity date before running it. Staging HTTP tests have not been marked passed until a real staging endpoint is configured and the collection is executed.
 
+### Run local staging on Windows
+
+No hosting account is required for the first Mobile–Backend integration pass. From PowerShell in this repository:
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+.\scripts\start-local-staging.ps1
+```
+
+The script validates that `APP_ENV=local` and `DB_CONNECTION=sqlite`, creates the SQLite file if needed, runs non-destructive migrations, seeds local demo accounts, and starts Laravel on port 8000. It refuses to run against MySQL or a non-local application environment.
+
+Demo accounts (local only):
+- `student@nexora.local`
+- `lecturer@nexora.local`
+- `coordinator@nexora.local`
+
+Password for all three: `NexoraLocal!2026`. Never use these public dummy credentials on a public/shared server.
+
+Use `http://127.0.0.1:8000/api` for Postman on the PC, `http://10.0.2.2:8000/api` for Android Emulator, or the private LAN IPv4 printed by the script for a physical phone on the same Wi-Fi. The full setup and safety notes are in the runbook.
+
 ## Tests
 
 Run the full automated suite:
