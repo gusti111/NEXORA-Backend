@@ -154,7 +154,7 @@ Protected routes use `auth:sanctum` together with role middleware. Active-accoun
 | --- | --- |
 | Authentication | `POST /login`, `POST /register`, `POST /logout`, `GET /user` |
 | Student PKL | `GET /pkls` |
-| Student logbook | `GET /logbooks`, `POST /logbooks`, `PUT /logbooks/{id}/resubmit`, `GET /logbooks/statistics`, `GET /logbooks/{id}/history` |
+| Student logbook | `GET /logbooks`, `POST /logbooks`, `PUT /logbooks/{id}/resubmit`, `GET /logbooks/statistics`, `GET /logbooks/{id}/history`, `GET /logbooks/{id}/photo` |
 | Lecturer | `GET /dosen/logbooks`, `GET /dosen/mahasiswa`, `PATCH /dosen/logbooks/{id}/review` |
 | Coordinator | `GET /korlap/logbooks`, `GET /korlap/statistics`, `GET /korlap/mahasiswa`, `PUT /korlap/pkls/{id}/complete`, PDF/Excel exports |
 | Administrator | `/users`, `/admin/users/{id}`, `/pkls`, `/admin/pkls`, `/admin/logbooks`, `/admin/statistics` and related management routes |
@@ -171,14 +171,20 @@ See `routes/api.php` for the canonical route definitions and middleware.
 6. A student can resubmit a logbook only when its status is `revision_requested`; resubmission resets the current status to `pending`.
 7. A coordinator can complete a PKL after at least one logbook has been approved.
 
-Logbook photos are validated as images (up to 10 MB on upload) and processed to a target size of at most 500 KB. Latitude and longitude are optional and validated against geographic ranges.
+Logbook photos are validated as images (up to 10 MB on upload), converted to JPEG, and processed to a target size of at most 500 KB. New photos are stored on Laravel's non-public `local` disk (`storage/app/private`). The `GET /api/logbooks/{id}/photo` endpoint streams the image only after checking the caller's relationship to the PKL placement: the student owner, assigned lecturer, assigned coordinator, or an administrator. Responses use private/no-store cache headers. Latitude and longitude are optional and validated against geographic ranges.
 
 ## Data protection and backup policy
 
 - Do not commit `.env`, database dumps, access tokens, real student records, uploaded documents, or private evidence.
 - `database/backup/` is ignored by Git and local backup artifacts are removed from the proposed Phase 1 branch. Use sanitized fixtures or model factories for tests.
 - Keep operational backups outside the source repository, encrypt them at rest, restrict access, and define a retention policy.
-- **Photo privacy remains a production hardening item:** logbook photos currently use Laravel's public filesystem disk. Do not use real personal or sensitive evidence in production until private authenticated file delivery and authorization checks are implemented.
+- New logbook uploads are stored privately and are served through the authenticated photo endpoint; direct public `/storage/logbooks/...` URLs are not part of the new flow.
+- Before deploying this change against an existing database, back up the database and storage directory, inspect the planned migration, then move legacy public photos into private storage:
+  ```bash
+  php artisan nexora:migrate-logbook-photos-to-private --dry-run
+  php artisan nexora:migrate-logbook-photos-to-private
+  ```
+  The migration verifies file hashes before deleting a public duplicate. Missing files or mismatches are reported and return a non-zero exit status for manual review. Run the command with an account that has permission to read the public files and write to `storage/app/private`.
 - Hard deletion of users with PKL assignments or review history is blocked to preserve academic records. Deactivate such accounts instead.
 
 ## Tests
