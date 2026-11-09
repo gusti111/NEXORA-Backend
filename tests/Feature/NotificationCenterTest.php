@@ -7,7 +7,9 @@ use App\Models\Pkl;
 use App\Models\User;
 use App\Notifications\LogbookReviewed;
 use App\Notifications\StudentLogbookSubmitted;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class NotificationCenterTest extends TestCase
@@ -136,6 +138,80 @@ class NotificationCenterTest extends TestCase
 
         $this->assertDatabaseCount('logbooks', 1);
         $this->assertDatabaseCount('notifications', 1);
+    }
+
+    public function test_submission_rolls_back_when_lecturer_notification_persistence_fails(): void
+    {
+        $student = $this->makeUser('mahasiswa');
+        $lecturer = $this->makeUser('dosen');
+        $coordinator = $this->makeUser('korlap');
+        $pkl = $this->makePkl($student, $lecturer, $coordinator);
+
+        DB::statement(<<<'SQL'
+            CREATE TRIGGER block_notification_insert
+            BEFORE INSERT ON notifications
+            BEGIN
+                SELECT RAISE(ABORT, 'notification persistence unavailable');
+            END;
+        SQL);
+
+        $this->withoutExceptionHandling();
+
+        try {
+            $this->actingAs($student, 'sanctum')
+                ->postJson('/api/logbooks', [
+                    'pkl_id' => $pkl->id,
+                    'idempotency_key' => '2a31bd8a-8e5b-43c0-9bdb-3b9ec0c11001',
+                    'tanggal_kegiatan' => now()->toDateString(),
+                    'judul_kegiatan' => 'Pemeriksaan jaringan',
+                    'deskripsi_kegiatan' => 'Menguji rollback transaksi.',
+                ]);
+
+            $this->fail('The notification insert should fail.');
+        } catch (QueryException) {
+            // Expected: the transaction must roll back both writes.
+        }
+
+        $this->assertDatabaseCount('logbooks', 0);
+        $this->assertDatabaseCount('notifications', 0);
+    }
+
+    public function test_review_rolls_back_status_and_history_when_student_notification_fails(): void
+    {
+        $student = $this->makeUser('mahasiswa');
+        $lecturer = $this->makeUser('dosen');
+        $coordinator = $this->makeUser('korlap');
+        $pkl = $this->makePkl($student, $lecturer, $coordinator);
+        $logbook = $this->makeLogbook($pkl);
+
+        DB::statement(<<<'SQL'
+            CREATE TRIGGER block_notification_insert
+            BEFORE INSERT ON notifications
+            BEGIN
+                SELECT RAISE(ABORT, 'notification persistence unavailable');
+            END;
+        SQL);
+
+        $this->withoutExceptionHandling();
+
+        try {
+            $this->actingAs($lecturer, 'sanctum')
+                ->patchJson('/api/dosen/logbooks/'.$logbook->id.'/review', [
+                    'status' => 'approved',
+                    'komentar' => 'Sudah sesuai.',
+                ]);
+
+            $this->fail('The notification insert should fail.');
+        } catch (QueryException) {
+            // Expected: review status, history, and notification roll back.
+        }
+
+        $this->assertDatabaseHas('logbooks', [
+            'id' => $logbook->id,
+            'status' => 'pending',
+        ]);
+        $this->assertDatabaseCount('logbook_reviews', 0);
+        $this->assertDatabaseCount('notifications', 0);
     }
 
     public function test_logbook_review_notifies_the_student(): void
