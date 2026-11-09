@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Logbook;
+use App\Notifications\StudentLogbookSubmitted;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -115,6 +116,7 @@ class LogbookController extends Controller
     {
         $validated = $request->validate([
             'pkl_id' => 'required|exists:pkls,id',
+            'idempotency_key' => 'nullable|uuid',
             'judul_kegiatan' => 'required|string|max:255',
             'deskripsi_kegiatan' => 'required|string|max:5000',
             'foto' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:10240',
@@ -132,6 +134,27 @@ class LogbookController extends Controller
             return response()->json([
                 'message' => 'Kamu tidak memiliki akses ke penempatan PKL ini.',
             ], 403);
+        }
+
+        // Idempotency prevents duplicate rows when a mobile retry follows
+        // a successful server write whose response was lost in transit.
+        if (!empty($validated['idempotency_key'])) {
+            $existing = Logbook::where('idempotency_key', $validated['idempotency_key'])
+                ->first();
+
+            if ($existing) {
+                if ($existing->pkl_id !== $pkl->id) {
+                    return response()->json([
+                        'message' => 'Kunci pengiriman sudah digunakan oleh data lain.',
+                    ], 409);
+                }
+
+                return response()->json([
+                    'message' => 'Logbook ini sudah pernah diterima.',
+                    'data' => $existing,
+                    'duplicate' => true,
+                ]);
+            }
         }
 
         // LOGBOOK BARU HANYA BOLEH DIKIRIM SAAT PKL BERLANGSUNG
@@ -173,6 +196,7 @@ class LogbookController extends Controller
         try {
             $logbook = Logbook::create([
                 'pkl_id' => $pkl->id,
+                'idempotency_key' => $validated['idempotency_key'] ?? null,
                 'tanggal_kegiatan' => $validated['tanggal_kegiatan'],
                 'judul_kegiatan' => $validated['judul_kegiatan'],
                 'deskripsi_kegiatan' => $validated['deskripsi_kegiatan'],
@@ -189,6 +213,11 @@ class LogbookController extends Controller
 
             throw $e;
         }
+
+        $pkl->loadMissing('dosen', 'mahasiswa');
+        $pkl->dosen?->notify(new StudentLogbookSubmitted(
+            $logbook->load('pkl.mahasiswa')
+        ));
 
         return response()->json([
             'message' => 'Logbook berhasil dikirim.',
