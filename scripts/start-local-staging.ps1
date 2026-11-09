@@ -82,6 +82,18 @@ if ($dbDatabase -eq ":memory:") {
     throw "DB_DATABASE=:memory: tidak cocok untuk server lokal persisten. Gunakan database/database.sqlite."
 }
 
+# Prevent inherited machine/user environment variables from silently
+# redirecting Laravel to a different application environment or database.
+if ($env:APP_ENV -and $env:APP_ENV -ne "local") {
+    throw "Environment variable APP_ENV menimpa .env dan bukan 'local'."
+}
+if ($env:DB_CONNECTION -and $env:DB_CONNECTION -ne "sqlite") {
+    throw "Environment variable DB_CONNECTION menimpa .env dan bukan 'sqlite'."
+}
+if ($env:DB_URL) {
+    throw "Environment variable DB_URL harus kosong untuk local staging."
+}
+
 $databasePath = if ([System.IO.Path]::IsPathRooted($dbDatabase)) {
     $dbDatabase
 } else {
@@ -118,12 +130,21 @@ if (-not (Test-Path (Join-Path $ProjectRoot "vendor/autoload.php"))) {
     throw "vendor/autoload.php belum tersedia. Jalankan composer install."
 }
 
-$appKey = Get-DotEnvValue -Name "APP_KEY" -Content $envContent
+# Pin child PHP processes to this local SQLite database, regardless of
+# unrelated machine-level environment variables.
+$env:APP_ENV = "local"
+$env:APP_DEBUG = "true"
+$env:DB_CONNECTION = "sqlite"
+$env:DB_DATABASE = $databasePath
+$env:DB_URL = ""
+$env:FILESYSTEM_DISK = "local"
+
+Invoke-Checked -Command "php" -Arguments @("artisan", "optimize:clear")
+
+$appKey = Get-DotEnvValue -Name "APP_KEY" -Content (Get-Content $envPath -Raw)
 if ([string]::IsNullOrWhiteSpace($appKey)) {
     Invoke-Checked -Command "php" -Arguments @("artisan", "key:generate")
 }
-
-Invoke-Checked -Command "php" -Arguments @("artisan", "optimize:clear")
 Invoke-Checked -Command "php" -Arguments @("artisan", "migrate", "--no-interaction")
 Invoke-Checked -Command "php" -Arguments @(
     "artisan", "db:seed",
