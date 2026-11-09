@@ -475,10 +475,17 @@ class LogbookController extends Controller
             abort(404);
         }
 
+        $contentType = match (strtolower(pathinfo($path, PATHINFO_EXTENSION))) {
+            'jpg', 'jpeg' => 'image/jpeg',
+            'png' => 'image/png',
+            'webp' => 'image/webp',
+            default => 'application/octet-stream',
+        };
+
         return response()->stream(function () use ($disk, $path) {
             echo $disk->get($path);
         }, 200, [
-            'Content-Type' => 'image/jpeg',
+            'Content-Type' => $contentType,
             'Cache-Control' => 'private, no-store, max-age=0',
             'X-Content-Type-Options' => 'nosniff',
         ]);
