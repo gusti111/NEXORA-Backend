@@ -172,8 +172,7 @@ Write-Host "IPv4 address untuk perangkat fisik:" -ForegroundColor Cyan
 try {
     Get-NetIPAddress -AddressFamily IPv4 -ErrorAction Stop |
         Where-Object {
-            $_.IPAddress -notlike "127.*" -and
-            $_.IPAddress -notlike "169.254.*" -and
+            ($_.IPAddress -match '^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.)') -and
             $_.AddressState -eq "Preferred"
         } |
         Select-Object -ExpandProperty IPAddress -Unique |
