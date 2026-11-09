@@ -8,10 +8,10 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Logbook extends Model
 {
-    
-protected $fillable = [
+    protected $fillable = [
         'pkl_id',
         'tanggal_kegiatan',
+        'judul_kegiatan',
         'deskripsi_kegiatan',
         'foto',
         'latitude',
@@ -19,7 +19,6 @@ protected $fillable = [
         'status',
         'catatan_dosen',
     ];
-
 
     protected $casts = [
         'tanggal_kegiatan' => 'date',

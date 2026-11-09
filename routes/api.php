@@ -22,7 +22,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
 
     Route::get('/user', function (Request $request) {
-        return $request->user();
+        return response()->json([
+            'message' => 'Profil pengguna berhasil divalidasi.',
+            'data' => $request->user(),
+        ]);
     })->middleware(EnsureActive::class);
 
     // KELOLA AKUN DOSEN DAN KORLAP (ADMIN)
@@ -69,6 +72,10 @@ Route::middleware('auth:sanctum')->group(function () {
     // RIWAYAT PEMERIKSAAN LOGBOOK — BISA DIAKSES MAHASISWA & DOSEN
     Route::get('/logbooks/{id}/history', [LogbookController::class, 'history'])
         ->middleware('role:mahasiswa,dosen');
+
+    // FOTO DOKUMENTASI DIKIRIM MELALUI ENDPOINT PRIVAT DENGAN PEMERIKSAAN KEPEMILIKAN
+    Route::get('/logbooks/{id}/photo', [LogbookController::class, 'photo'])
+        ->middleware('role:mahasiswa,dosen,korlap,admin');
 
     Route::get('/logbooks/statistics', [LogbookController::class, 'statistics'])
         ->middleware('role:mahasiswa');

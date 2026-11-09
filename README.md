@@ -1,59 +1,222 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# NEXORA Backend
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Laravel REST API for **NEXORA**, a role-based PKL (Praktik Kerja Lapangan) logbook, review, and supervision platform.
 
-## About Laravel
+This repository provides the API consumed by [NEXORA Mobile](https://github.com/gusti111/NEXORA-Mobile).
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## Product capabilities
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+| Role | Responsibilities |
+| --- | --- |
+| **Mahasiswa** | View own PKL placement, submit activity logbooks with optional photo and GPS coordinates, track review status, resubmit revisions, and view review history. |
+| **Dosen** | View assigned students and logbooks, approve/reject submissions, request revisions with comments, and maintain review history. |
+| **Korlap** | Monitor assigned students, inspect progress statistics, complete eligible PKL placements, and export PDF/Excel reports. |
+| **Admin** | Manage accounts and PKL placements, reset passwords, inspect logbooks, and view platform statistics. |
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+## Architecture and technology
 
-## Learning Laravel
+- PHP 8.2+
+- Laravel 12
+- Laravel Sanctum 4 (personal access tokens)
+- MySQL or SQLite
+- Eloquent ORM and database migrations
+- Intervention Image for uploaded logbook photo processing
+- Laravel Excel for spreadsheet exports
+- DomPDF for PDF reports
+- PHPUnit / Laravel testing utilities
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+```text
+NEXORA Mobile (Flutter)
+        │
+        │ HTTPS + Authorization: Bearer <token>
+        ▼
+NEXORA Backend (Laravel API)
+        ├── Authentication (Sanctum)
+        ├── Role and active-account middleware
+        ├── User and PKL management
+        ├── Logbook submission and review workflow
+        ├── Report export (PDF / Excel)
+        └── Database and uploaded files
+```
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+## Requirements
 
-## Laravel Sponsors
+- PHP 8.2 or newer.
+- Composer 2.
+- PHP extensions required by Laravel and the packages in `composer.json` (including PDO, SQLite or MySQL support, GD, fileinfo, mbstring, XML, and ZIP).
+- Node.js and npm only when building the bundled Vite assets.
+- MySQL or SQLite database.
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+## Local setup
 
-### Premium Partners
+### 1. Install dependencies
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+```bash
+composer install
+```
 
-## Contributing
+### 2. Configure the environment
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+```bash
+cp .env.example .env
+php artisan key:generate
+```
 
-## Code of Conduct
+By default, `.env.example` is configured for SQLite. Create the file if it does not exist:
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+```bash
+touch database/database.sqlite
+```
 
-## Security Vulnerabilities
+For MySQL, update the following values in `.env`:
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+```dotenv
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=nexora
+DB_USERNAME=your_local_user
+DB_PASSWORD=your_local_password
+```
 
-## License
+Never commit `.env` or production credentials.
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+### 3. Run migrations
+
+```bash
+php artisan migrate
+```
+
+### 4. Prepare public file storage
+
+```bash
+php artisan storage:link
+```
+
+### 5. Start the API
+
+```bash
+php artisan serve --host=0.0.0.0 --port=8000
+```
+
+- Health check: `GET /up`
+- API prefix: `/api`
+- Android emulator base URL: `http://10.0.2.2:8000/api`
+
+Use HTTPS in production. Set `APP_ENV=production`, `APP_DEBUG=false`, a production `APP_URL`, secure database credentials, and a properly configured web server / reverse proxy.
+
+## Authentication and authorization
+
+Public authentication endpoints:
+
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| `POST` | `/api/login` | Authenticate using email or username and password; returns a Sanctum bearer token and user profile. |
+| `POST` | `/api/register` | Register a student account. |
+
+Authenticated endpoint:
+
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| `POST` | `/api/logout` | Revoke the current personal access token. |
+| `GET` | `/api/user` | Validate the current account and return the current profile in the standard `data` response envelope. |
+
+Include the token on protected requests:
+
+```http
+Accept: application/json
+Authorization: Bearer <access-token>
+```
+
+### Role access
+
+| Role | Protected API groups |
+| --- | --- |
+| `mahasiswa` | Own PKL placement, logbook submission, statistics, revision, and review history. |
+| `dosen` | Assigned student list, assigned logbooks, review actions, and permitted review history. |
+| `korlap` | Assigned students and logbooks, statistics, PKL completion, and report exports. |
+| `admin` | User management, PKL placement management, platform statistics, and logbook oversight. |
+
+Protected routes use `auth:sanctum` together with role middleware. Active-account checks reject disabled users. Controllers additionally scope queries to the authenticated student's, lecturer's, or coordinator's assignments; role middleware alone is not treated as data ownership authorization.
+
+### Token lifecycle
+
+- Sanctum stores token hashes in the database; the plain-text token is returned to the client at issuance.
+- The mobile application stores its token in platform secure storage.
+- The mobile client calls `/api/logout` and the backend deletes the token used for the request.
+- Admin password resets revoke the target user's existing personal access tokens.
+- The current Sanctum expiration setting is 10,080 minutes (seven days); update `config/sanctum.php` deliberately if policy changes.
+- Run `php artisan sanctum:prune-expired --hours=24` periodically in production to remove expired token records.
+
+## Main API modules
+
+| Module | Endpoints |
+| --- | --- |
+| Authentication | `POST /login`, `POST /register`, `POST /logout`, `GET /user` |
+| Student PKL | `GET /pkls` |
+| Student logbook | `GET /logbooks`, `POST /logbooks`, `PUT /logbooks/{id}/resubmit`, `GET /logbooks/statistics`, `GET /logbooks/{id}/history`, `GET /logbooks/{id}/photo` |
+| Lecturer | `GET /dosen/logbooks`, `GET /dosen/mahasiswa`, `PATCH /dosen/logbooks/{id}/review` |
+| Coordinator | `GET /korlap/logbooks`, `GET /korlap/statistics`, `GET /korlap/mahasiswa`, `PUT /korlap/pkls/{id}/complete`, PDF/Excel exports |
+| Administrator | `/users`, `/admin/users/{id}`, `/pkls`, `/admin/pkls`, `/admin/logbooks`, `/admin/statistics` and related management routes |
+
+See `routes/api.php` for the canonical route definitions and middleware.
+
+## Logbook workflow and data rules
+
+1. An administrator creates a PKL placement and assigns the student, lecturer, and coordinator.
+2. A student can submit a logbook only for their own active PKL placement and within the allowed activity date range.
+3. A new logbook starts with `pending` status.
+4. The assigned lecturer can approve, reject, or request a revision. A revision request requires a non-empty comment.
+5. Each lecturer review is recorded in `logbook_reviews`.
+6. A student can resubmit a logbook only when its status is `revision_requested`; resubmission resets the current status to `pending`.
+7. A coordinator can complete a PKL after at least one logbook has been approved.
+
+Logbook photos are validated as images (up to 10 MB on upload), converted to JPEG, and processed to a target size of at most 500 KB. New photos are stored on Laravel's non-public `local` disk (`storage/app/private`). The `GET /api/logbooks/{id}/photo` endpoint streams the image only after checking the caller's relationship to the PKL placement: the student owner, assigned lecturer, assigned coordinator, or an administrator. Responses use private/no-store cache headers. Latitude and longitude are optional and validated against geographic ranges.
+
+## Data protection and backup policy
+
+- Do not commit `.env`, database dumps, access tokens, real student records, uploaded documents, or private evidence.
+- `database/backup/` is ignored by Git and local backup artifacts are removed from the proposed Phase 1 branch. Use sanitized fixtures or model factories for tests.
+- Keep operational backups outside the source repository, encrypt them at rest, restrict access, and define a retention policy.
+- New logbook uploads are stored privately and are served through the authenticated photo endpoint; direct public `/storage/logbooks/...` URLs are not part of the new flow.
+- Before deploying this change against an existing database, back up the database and storage directory, inspect the planned migration, then move legacy public photos into private storage:
+  ```bash
+  php artisan nexora:migrate-logbook-photos-to-private --dry-run
+  php artisan nexora:migrate-logbook-photos-to-private
+  ```
+  The migration verifies file hashes before deleting a public duplicate. Missing files or mismatches are reported and return a non-zero exit status for manual review. Run the command with an account that has permission to read the public files and write to `storage/app/private`.
+- Hard deletion of users with PKL assignments or review history is blocked to preserve academic records. Deactivate such accounts instead.
+
+## Tests
+
+Run the full automated suite:
+
+```bash
+php artisan test
+```
+
+Current feature tests cover:
+
+- Login for all four supported roles.
+- The authenticated user profile response.
+- Cross-role request rejection and inactive-account rejection.
+- Token revocation after logout.
+- Token revocation after administrator password reset.
+- Protection of user records with PKL history.
+- Student logbook ownership isolation.
+- Lecturer review ownership isolation.
+- Logbook activity-title mass assignment regression.
+
+## Continuous integration
+
+GitHub Actions runs Composer validation and the Laravel test suite on pushes to `main` / `fix/**` and on pull requests targeting `main`.
+
+Workflow: `.github/workflows/laravel-ci.yml`.
+
+## Related repository
+
+- [NEXORA Mobile](https://github.com/gusti111/NEXORA-Mobile)
+
+## Project status
+
+NEXORA is under active development. Review API contracts, database migrations, file-privacy requirements, and deployment configuration before production releases.
