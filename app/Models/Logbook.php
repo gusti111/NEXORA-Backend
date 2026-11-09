@@ -1,14 +1,15 @@
 <?php
 
-namespace App\\Models;
+namespace App\Models;
 
-use Illuminate\\Database\\Eloquent\\Model;
-use Illuminate\\Database\\Eloquent\\Relations\\BelongsTo;
-use Illuminate\\Database\\Eloquent\\Relations\\HasMany;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Logbook extends Model
 {
-    protected $fillable = [
+    
+protected $fillable = [
         'pkl_id',
         'tanggal_kegiatan',
         'judul_kegiatan',
@@ -19,6 +20,7 @@ class Logbook extends Model
         'status',
         'catatan_dosen',
     ];
+
 
     protected $casts = [
         'tanggal_kegiatan' => 'date',
