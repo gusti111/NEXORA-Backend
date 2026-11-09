@@ -1,14 +1,14 @@
 # NEXORA — Staging Integration Runbook
 
-Dokumen ini dipakai untuk menguji kontrak antara Flutter Mobile (sudah berada di `main`) dan Laravel Backend Phase 2 sebelum Backend Phase 2 digabung ke `main`.
+Dokumen ini dipakai untuk menguji kontrak antara Flutter Mobile dan Laravel Backend. Phase 2 sudah terintegrasi ke branch `main` pada kedua repository; deploy commit `main` yang akan diuji dan catat SHA keduanya pada bukti pengujian.
 
 ## Status environment
 
-Belum ada staging URL atau deployment workflow yang terdeteksi di repository ketika dokumen ini dibuat. Karena itu, pengujian HTTP terhadap server nyata belum dijalankan. Gunakan environment staging terisolasi; jangan mengarahkan collection ini ke produksi.
+Belum ada staging URL atau deployment workflow yang terdeteksi di repository ketika dokumen ini diperbarui. Karena itu, pengujian HTTP terhadap server nyata belum dijalankan. Gunakan environment staging terisolasi; jangan mengarahkan collection ini ke produksi.
 
 ## 1. Siapkan backend staging
 
-1. Deploy branch `feat/phase-2-offline-notifications` ke staging sementara, atau deploy setelah PR #2 disetujui.
+1. Deploy branch `main` dari [NEXORA Backend](https://github.com/gusti111/NEXORA-Backend) ke staging. Jangan deploy branch fitur Phase 2 yang sudah selesai di-merge.
 2. Gunakan HTTPS, `APP_ENV=staging` (atau konfigurasi production-like yang disetujui), dan `APP_DEBUG=false`.
 3. Konfigurasikan database staging khusus dan backup sebelum migrasi.
 4. Pastikan private local storage tersedia dan tidak diekspos melalui web server.
