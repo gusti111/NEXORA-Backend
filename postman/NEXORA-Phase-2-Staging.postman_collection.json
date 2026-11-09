@@ -1,0 +1,499 @@
+{
+  "info": {
+    "_postman_id": "6f0d5730-9d11-4c2d-a4f2-28c3d9f8c221",
+    "name": "NEXORA Phase 2 — Staging Integration",
+    "description": "Integration checks for student logbook submission, idempotent replay, lecturer/student notifications, and notification read state. Configure a private Postman environment before use. Do not commit real credentials or tokens.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "01 — Student login",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"login\": \"{{studentLogin}}\",\n  \"password\": \"{{studentPassword}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": "{{baseUrl}}/login"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Student login succeeds', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.expect(body).to.have.property('token');",
+              "pm.expect(body.user.role).to.eql('mahasiswa');",
+              "pm.environment.set('studentToken', body.token);",
+              "pm.environment.set('studentId', String(body.user.id));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 — Lecturer login",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"login\": \"{{lecturerLogin}}\",\n  \"password\": \"{{lecturerPassword}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": "{{baseUrl}}/login"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Lecturer login succeeds', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.expect(body.user.role).to.eql('dosen');",
+              "pm.environment.set('lecturerToken', body.token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 — Validate student session",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{studentToken}}"
+          }
+        ],
+        "url": "{{baseUrl}}/user"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Current student session is valid', () => pm.response.to.have.status(200));",
+              "pm.expect(pm.response.json().data.id).to.eql(Number(pm.environment.get('studentId')));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 — Get active student PKL",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{studentToken}}"
+          }
+        ],
+        "url": "{{baseUrl}}/pkls"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Student PKL list is available', () => pm.response.to.have.status(200));",
+              "const pkls = pm.response.json().data || [];",
+              "const active = pkls.find((item) => item.status === 'berlangsung');",
+              "pm.expect(active, 'An active PKL placement must exist').to.exist;",
+              "pm.environment.set('pklId', String(active.id));",
+              "pm.environment.set('lecturerId', String(active.dosen_id));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 — Submit logbook (first delivery)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{studentToken}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"pkl_id\": \"{{pklId}}\",\n  \"idempotency_key\": \"{{idempotencyKey}}\",\n  \"tanggal_kegiatan\": \"{{activityDate}}\",\n  \"judul_kegiatan\": \"Staging integration — network check\",\n  \"deskripsi_kegiatan\": \"Dummy integration record. No real student or company data.\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": "{{baseUrl}}/logbooks"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('First delivery creates the logbook', () => pm.response.to.have.status(201));",
+              "const body = pm.response.json();",
+              "pm.expect(body.data).to.have.property('id');",
+              "pm.environment.set('logbookId', String(body.data.id));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 — Replay same idempotency key",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{studentToken}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"pkl_id\": \"{{pklId}}\",\n  \"idempotency_key\": \"{{idempotencyKey}}\",\n  \"tanggal_kegiatan\": \"{{activityDate}}\",\n  \"judul_kegiatan\": \"Staging integration — network check\",\n  \"deskripsi_kegiatan\": \"Dummy integration record. No real student or company data.\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": "{{baseUrl}}/logbooks"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Replay returns HTTP 200', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.expect(body.duplicate).to.eql(true);",
+              "pm.expect(String(body.data.id)).to.eql(pm.environment.get('logbookId'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "07 — Lecturer notification inbox",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{lecturerToken}}"
+          }
+        ],
+        "url": "{{baseUrl}}/notifications"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Lecturer notification inbox succeeds', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.expect(body).to.have.property('unread_count');",
+              "const matches = (body.data || []).filter((n) => n.data && n.data.event === 'logbook_submitted' && String(n.data.logbook_id) === pm.environment.get('logbookId'));",
+              "pm.expect(matches, 'Exactly one submission notification for this logbook').to.have.lengthOf(1);",
+              "pm.environment.set('lecturerNotificationId', matches[0].id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "08 — Lecturer reviews logbook",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{lecturerToken}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status\": \"approved\",\n  \"komentar\": \"Staging review completed.\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": "{{baseUrl}}/dosen/logbooks/{{logbookId}}/review"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Assigned lecturer can review the logbook', () => pm.response.to.have.status(200));",
+              "pm.expect(pm.response.json().data.status).to.eql('approved');"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "09 — Student receives review notification",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{studentToken}}"
+          }
+        ],
+        "url": "{{baseUrl}}/notifications"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Student notification inbox succeeds', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "const item = (body.data || []).find((n) => n.data && n.data.event === 'logbook_reviewed' && String(n.data.logbook_id) === pm.environment.get('logbookId'));",
+              "pm.expect(item, 'Review notification for this logbook').to.exist;",
+              "pm.expect(item.data.status).to.eql('approved');",
+              "pm.environment.set('studentNotificationId', item.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10 — Mark student notification as read",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{studentToken}}"
+          }
+        ],
+        "url": "{{baseUrl}}/notifications/{{studentNotificationId}}/read"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Student can mark own notification as read', () => pm.response.to.have.status(200));",
+              "pm.expect(pm.response.json().data.id).to.eql(pm.environment.get('studentNotificationId'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "11 — Notification unread count",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{studentToken}}"
+          }
+        ],
+        "url": "{{baseUrl}}/notifications/unread-count"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Unread count endpoint succeeds', () => pm.response.to.have.status(200));",
+              "pm.expect(pm.response.json().data.unread_count).to.be.a('number');"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "12 — Mark all lecturer notifications as read",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{lecturerToken}}"
+          }
+        ],
+        "url": "{{baseUrl}}/notifications/read-all"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Lecturer can mark their own notifications as read', () => pm.response.to.have.status(200));",
+              "pm.expect(pm.response.json().data.updated).to.be.a('number');"
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://STAGING-HOST/api"
+    },
+    {
+      "key": "studentLogin",
+      "value": ""
+    },
+    {
+      "key": "studentPassword",
+      "value": ""
+    },
+    {
+      "key": "lecturerLogin",
+      "value": ""
+    },
+    {
+      "key": "lecturerPassword",
+      "value": ""
+    },
+    {
+      "key": "studentToken",
+      "value": ""
+    },
+    {
+      "key": "lecturerToken",
+      "value": ""
+    },
+    {
+      "key": "studentId",
+      "value": ""
+    },
+    {
+      "key": "pklId",
+      "value": ""
+    },
+    {
+      "key": "lecturerId",
+      "value": ""
+    },
+    {
+      "key": "logbookId",
+      "value": ""
+    },
+    {
+      "key": "idempotencyKey",
+      "value": "SET-A-NEW-UUID-BEFORE-EACH-RUN"
+    },
+    {
+      "key": "activityDate",
+      "value": "SET-A-DATE-WITHIN-THE-SELECTED-PKL-PERIOD"
+    },
+    {
+      "key": "lecturerNotificationId",
+      "value": ""
+    },
+    {
+      "key": "studentNotificationId",
+      "value": ""
+    }
+  ]
+}

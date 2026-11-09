@@ -126,6 +126,36 @@ class LogbookPhotoSecurityTest extends TestCase
             ->assertStreamedContent('admin-photo-fixture');
     }
 
+    public function test_private_photo_endpoint_returns_mime_type_matching_legacy_extension(): void
+    {
+        Storage::fake('local');
+
+        $student = $this->makeUser('mahasiswa');
+        $lecturer = $this->makeUser('dosen');
+        $coordinator = $this->makeUser('korlap');
+
+        foreach ([
+            'logbooks/legacy-photo.png' => 'image/png',
+            'logbooks/legacy-photo.webp' => 'image/webp',
+        ] as $path => $expectedMimeType) {
+            $logbook = $this->makeLogbook(
+                $student,
+                $lecturer,
+                $coordinator,
+                $path,
+            );
+
+            Storage::disk('local')->put($path, 'legacy-image-fixture');
+
+            $this->actingAs($student, 'sanctum')
+                ->get('/api/logbooks/'.$logbook->id.'/photo')
+                ->assertOk()
+                ->assertHeader('Content-Type', $expectedMimeType)
+                ->assertHeader('X-Content-Type-Options', 'nosniff')
+                ->assertStreamedContent('legacy-image-fixture');
+        }
+    }
+
     public function test_unassigned_student_cannot_fetch_another_students_photo(): void
     {
         Storage::fake('local');
