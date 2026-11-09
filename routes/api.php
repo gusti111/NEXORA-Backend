@@ -73,6 +73,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/logbooks/{id}/history', [LogbookController::class, 'history'])
         ->middleware('role:mahasiswa,dosen');
 
+    // FOTO DOKUMENTASI DIKIRIM MELALUI ENDPOINT PRIVAT DENGAN PEMERIKSAAN KEPEMILIKAN
+    Route::get('/logbooks/{id}/photo', [LogbookController::class, 'photo'])
+        ->middleware('role:mahasiswa,dosen,korlap,admin');
+
     Route::get('/logbooks/statistics', [LogbookController::class, 'statistics'])
         ->middleware('role:mahasiswa');
 
