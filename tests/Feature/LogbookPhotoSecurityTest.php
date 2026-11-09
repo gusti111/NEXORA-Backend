@@ -71,7 +71,7 @@ class LogbookPhotoSecurityTest extends TestCase
             ->assertHeader('Content-Type', 'image/jpeg')
             ->assertHeader('Cache-Control', 'private, no-store, max-age=0')
             ->assertHeader('X-Content-Type-Options', 'nosniff')
-            ->assertContent('private-jpeg-fixture');
+            ->assertStreamedContent('private-jpeg-fixture');
     }
 
     public function test_assigned_lecturer_can_fetch_the_students_logbook_photo(): void
@@ -88,7 +88,7 @@ class LogbookPhotoSecurityTest extends TestCase
         $this->actingAs($lecturer, 'sanctum')
             ->get('/api/logbooks/'.$logbook->id.'/photo')
             ->assertOk()
-            ->assertContent('lecturer-photo-fixture');
+            ->assertStreamedContent('lecturer-photo-fixture');
     }
 
     public function test_assigned_coordinator_can_fetch_the_students_logbook_photo(): void
@@ -105,7 +105,7 @@ class LogbookPhotoSecurityTest extends TestCase
         $this->actingAs($coordinator, 'sanctum')
             ->get('/api/logbooks/'.$logbook->id.'/photo')
             ->assertOk()
-            ->assertContent('coordinator-photo-fixture');
+            ->assertStreamedContent('coordinator-photo-fixture');
     }
 
     public function test_admin_can_fetch_a_logbook_photo_for_audit(): void
@@ -123,7 +123,7 @@ class LogbookPhotoSecurityTest extends TestCase
         $this->actingAs($admin, 'sanctum')
             ->get('/api/logbooks/'.$logbook->id.'/photo')
             ->assertOk()
-            ->assertContent('admin-photo-fixture');
+            ->assertStreamedContent('admin-photo-fixture');
     }
 
     public function test_unassigned_student_cannot_fetch_another_students_photo(): void
