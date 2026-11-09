@@ -181,6 +181,24 @@
       },
       "event": [
         {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const currentKey = pm.environment.get('idempotencyKey');",
+              "const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;",
+              "if (!uuidPattern.test(currentKey || '')) {",
+              "  pm.environment.set('idempotencyKey', pm.variables.replaceIn('{{$guid}}'));",
+              "}",
+              "if (!pm.environment.get('activityDate')) {",
+              "  const now = new Date();",
+              "  const pad = (value) => String(value).padStart(2, '0');",
+              "  pm.environment.set('activityDate', `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`);",
+              "}"
+            ]
+          }
+        },
+        {
           "listen": "test",
           "script": {
             "type": "text/javascript",
@@ -437,7 +455,7 @@
   "variable": [
     {
       "key": "baseUrl",
-      "value": "https://STAGING-HOST/api"
+      "value": "http://127.0.0.1:8000/api"
     },
     {
       "key": "studentLogin",
