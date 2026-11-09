@@ -92,6 +92,25 @@ class UserController extends Controller
             'role' => 'sometimes|required|in:mahasiswa,dosen,korlap,admin',
         ]);
 
+        if (isset($validated['role']) && $validated['role'] !== $user->role) {
+            $hasAssignments = $user->pklsAsMahasiswa()->exists()
+                || $user->pklsAsDosen()->exists()
+                || $user->pklsAsKorlap()->exists()
+                || $user->logbookReviews()->exists();
+
+            if ($hasAssignments) {
+                return response()->json([
+                    'message' => 'Peran pengguna tidak dapat diubah karena akun ini sudah terhubung dengan riwayat PKL atau pemeriksaan logbook.',
+                ], 422);
+            }
+
+            if ($user->id === $request->user()->id && $user->role === 'admin') {
+                return response()->json([
+                    'message' => 'Admin tidak dapat mengubah peran akunnya sendiri.',
+                ], 403);
+            }
+        }
+
         $user->update($validated);
 
         return response()->json([
@@ -112,6 +131,9 @@ class UserController extends Controller
         $user->update([
             'password' => Hash::make($validated['password']),
         ]);
+
+        // Revoke every active session so the new password takes effect immediately.
+        $user->tokens()->delete();
 
         return response()->json([
             'message' => 'Password berhasil direset.',
@@ -155,16 +177,18 @@ class UserController extends Controller
             ], 403);
         }
 
-        // Cek apakah user masih terikat PKL aktif
-        if ($user->role === 'mahasiswa') {
-            $pklAktif = $user->pklsAsMahasiswa()
-                ->where('status', 'berlangsung')
-                ->exists();
-            if ($pklAktif) {
-                return response()->json([
-                    'message' => 'Mahasiswa masih memiliki PKL berlangsung. Hapus PKL terlebih dahulu.',
-                ], 422);
-            }
+        // Preserve academic records: linked PKL assignments and lecturer reviews
+        // must remain available for institutional history and audit purposes.
+        $hasPklHistory = $user->pklsAsMahasiswa()->exists()
+            || $user->pklsAsDosen()->exists()
+            || $user->pklsAsKorlap()->exists();
+
+        $hasReviewHistory = $user->logbookReviews()->exists();
+
+        if ($hasPklHistory || $hasReviewHistory) {
+            return response()->json([
+                'message' => 'Akun memiliki riwayat PKL atau pemeriksaan logbook dan tidak dapat dihapus. Nonaktifkan akun untuk mempertahankan histori.',
+            ], 422);
         }
 
         $user->tokens()->delete();
