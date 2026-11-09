@@ -14,11 +14,18 @@ use App\Http\Controllers\Api\KorlapExportController;
 use App\Http\Middleware\EnsureActive;
 use App\Http\Controllers\Api\KorlapMahasiswaController;
 use App\Http\Controllers\Api\AdminLogbookController;
+use App\Http\Controllers\Api\NotificationController;
 
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
 
 Route::middleware('auth:sanctum')->group(function () {
+
+    // NOTIFIKASI DALAM APLIKASI (DATABASE)
+    Route::get('/notifications', [NotificationController::class, 'index']);
+    Route::get('/notifications/unread-count', [NotificationController::class, 'unreadCount']);
+    Route::patch('/notifications/read-all', [NotificationController::class, 'markAllAsRead']);
+    Route::patch('/notifications/{id}/read', [NotificationController::class, 'markAsRead']);
     Route::post('/logout', [AuthController::class, 'logout']);
 
     Route::get('/user', function (Request $request) {
