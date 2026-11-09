@@ -145,7 +145,7 @@ class LogbookController extends Controller
                 ->first();
 
             if ($existing) {
-                if ($existing->pkl_id !== $pkl->id) {
+                if ((int) $existing->pkl_id !== (int) $pkl->id) {
                     return response()->json([
                         'message' => 'Kunci pengiriman sudah digunakan oleh data lain.',
                     ], 409);
@@ -230,7 +230,7 @@ class LogbookController extends Controller
             $sqlState = $e->errorInfo[0] ?? (string) $e->getCode();
             $driverCode = $e->errorInfo[1] ?? null;
             $isUniqueViolation = in_array($sqlState, ['23000', '23505'], true)
-                || in_array($driverCode, [19, 1062], true);
+                || in_array((int) $driverCode, [19, 1062], true);
 
             if ($isUniqueViolation && !empty($validated['idempotency_key'])) {
                 $existing = Logbook::where(
