@@ -169,6 +169,8 @@ See `routes/api.php` for the canonical route definitions and middleware.
 - Concurrent requests using the same key are arbitrated by the database unique index and reconciled to the already-created record.
 - A key already bound to a different PKL is rejected with HTTP `409`.
 - The assigned lecturer receives a database notification when a new logbook is accepted.
+- When a student resubmits a logbook with `revision_requested` status, the backend resets it to `pending`, clears the previous lecturer comment, and notifies the assigned lecturer with a `submission_type: resubmission` event. The update and notification are atomic; photo replacement is finalized only after the database transaction commits.
+- Resubmission is restricted to the logbook owner, requires an actual content/photo change, and cannot be used while the logbook is in another status.
 - The student receives a database notification after the lecturer records an approval, revision request, or rejection.
 - Authenticated notification endpoints: `GET /api/notifications`, `GET /api/notifications/unread-count`, `PATCH /api/notifications/{id}/read`, and `PATCH /api/notifications/read-all`.
 - Notification queries and read-state updates are scoped to the authenticated user.
