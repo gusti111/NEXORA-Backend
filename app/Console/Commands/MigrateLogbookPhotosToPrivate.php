@@ -1,11 +1,11 @@
 <?php
 
-namespace App\\Console\\Commands;
+namespace App\Console\Commands;
 
-use App\\Models\\Logbook;
-use Illuminate\\Console\\Command;
-use Illuminate\\Support\\Facades\\Storage;
-use Illuminate\\Support\\Str;
+use App\Models\Logbook;
+use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class MigrateLogbookPhotosToPrivate extends Command
 {
