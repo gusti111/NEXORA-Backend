@@ -250,6 +250,8 @@ Current feature tests cover:
 - Logbook activity-title mass assignment regression.
 - Database notification delivery for submission and review events.
 - Notification inbox ownership, unread count, and read-state transitions.
+- End-to-end student login, logbook submission, idempotent replay, lecturer login/review, student notification, and mark-as-read.
+- Local staging seeder role/PKL setup and idempotent reruns.
 - Transaction rollback when database notification persistence fails during submission or lecturer review.
 - Idempotent submission replay, including after the PKL placement has been completed.
 - Rejection of idempotency-key reuse across different PKL placements.
