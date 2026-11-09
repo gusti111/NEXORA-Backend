@@ -65,7 +65,7 @@ class Phase2EndToEndTest extends TestCase
             'deskripsi_kegiatan' => 'Menguji alur kirim, replay, notifikasi, dan review.',
         ];
 
-        $created = $this->withToken($studentToken)
+        $created = $this->flushHeaders()->withToken($studentToken)
             ->postJson('/api/logbooks', $payload)
             ->assertCreated()
             ->assertJsonPath('data.status', 'pending');
@@ -98,7 +98,7 @@ class Phase2EndToEndTest extends TestCase
 
         // Verify that the second bearer token resolves to the lecturer before
         // checking the notification inbox.
-        $this->withToken($lecturerToken)
+        $this->flushHeaders()->withToken($lecturerToken)
             ->getJson('/api/user')
             ->assertOk()
             ->assertJsonPath('data.id', $lecturer->id);
@@ -107,7 +107,7 @@ class Phase2EndToEndTest extends TestCase
         $this->assertNull($lecturerNotification->read_at);
         $this->assertSame(1, $lecturer->unreadNotifications()->count());
 
-        $lecturerInbox = $this->withToken($lecturerToken)
+        $lecturerInbox = $this->flushHeaders()->withToken($lecturerToken)
             ->getJson('/api/notifications')
             ->assertOk()
             ->assertJsonCount(1, 'data');
@@ -128,7 +128,7 @@ class Phase2EndToEndTest extends TestCase
         );
 
         // The assigned lecturer reviews the logbook.
-        $this->withToken($lecturerToken)
+        $this->flushHeaders()->withToken($lecturerToken)
             ->patchJson('/api/dosen/logbooks/'.$logbookId.'/review', [
                 'status' => 'approved',
                 'komentar' => 'E2E review approved.',
@@ -150,7 +150,7 @@ class Phase2EndToEndTest extends TestCase
         ]);
 
         // Student receives and acknowledges the review notification.
-        $studentInbox = $this->withToken($studentToken)
+        $studentInbox = $this->flushHeaders()->withToken($studentToken)
             ->getJson('/api/notifications')
             ->assertOk()
             ->assertJsonPath('unread_count', 1)
