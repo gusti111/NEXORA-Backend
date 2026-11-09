@@ -96,6 +96,10 @@ class NotificationCenterTest extends TestCase
             ->postJson('/api/logbooks', $payload)
             ->assertCreated();
 
+        // The replay must return the original record even if the placement
+        // has since been completed after the first request reached the server.
+        $pkl->update(['status' => 'selesai']);
+
         $this->postJson('/api/logbooks', $payload)
             ->assertOk()
             ->assertJsonPath('duplicate', true);
