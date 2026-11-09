@@ -214,6 +214,93 @@ class NotificationCenterTest extends TestCase
         $this->assertDatabaseCount('notifications', 0);
     }
 
+    public function test_logbook_resubmission_notifies_the_assigned_lecturer_and_resets_review_state(): void
+    {
+        $student = $this->makeUser('mahasiswa');
+        $lecturer = $this->makeUser('dosen');
+        $coordinator = $this->makeUser('korlap');
+        $pkl = $this->makePkl($student, $lecturer, $coordinator);
+        $logbook = $this->makeLogbook($pkl);
+
+        $logbook->update([
+            'status' => 'revision_requested',
+            'catatan_dosen' => 'Mohon lengkapi hasil kegiatan.',
+        ]);
+
+        $this->actingAs($student, 'sanctum')
+            ->putJson('/api/logbooks/'.$logbook->id.'/resubmit', [
+                'judul_kegiatan' => 'Pemeriksaan jaringan - revisi',
+                'deskripsi_kegiatan' => 'Deskripsi telah dilengkapi sesuai masukan dosen.',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.status', 'pending')
+            ->assertJsonPath('data.catatan_dosen', null)
+            ->assertJsonPath('data.judul_kegiatan', 'Pemeriksaan jaringan - revisi');
+
+        $this->assertDatabaseHas('logbooks', [
+            'id' => $logbook->id,
+            'status' => 'pending',
+            'catatan_dosen' => null,
+            'judul_kegiatan' => 'Pemeriksaan jaringan - revisi',
+        ]);
+
+        $this->assertDatabaseCount('notifications', 1);
+        $notification = $lecturer->notifications()->firstOrFail();
+
+        $this->assertSame(StudentLogbookSubmitted::class, $notification->type);
+        $this->assertSame('logbook_submitted', $notification->data['event']);
+        $this->assertSame('resubmission', $notification->data['submission_type']);
+        $this->assertSame(
+            'Logbook revisi menunggu pemeriksaan',
+            $notification->data['title']
+        );
+    }
+
+    public function test_resubmission_rolls_back_logbook_changes_when_lecturer_notification_fails(): void
+    {
+        $student = $this->makeUser('mahasiswa');
+        $lecturer = $this->makeUser('dosen');
+        $coordinator = $this->makeUser('korlap');
+        $pkl = $this->makePkl($student, $lecturer, $coordinator);
+        $logbook = $this->makeLogbook($pkl);
+
+        $logbook->update([
+            'status' => 'revision_requested',
+            'catatan_dosen' => 'Mohon lengkapi hasil kegiatan.',
+        ]);
+
+        DB::statement(<<<'SQL'
+            CREATE TRIGGER block_notification_insert
+            BEFORE INSERT ON notifications
+            BEGIN
+                SELECT RAISE(ABORT, 'notification persistence unavailable');
+            END;
+        SQL);
+
+        $this->withoutExceptionHandling();
+
+        try {
+            $this->actingAs($student, 'sanctum')
+                ->putJson('/api/logbooks/'.$logbook->id.'/resubmit', [
+                    'judul_kegiatan' => 'Judul hasil revisi',
+                    'deskripsi_kegiatan' => 'Deskripsi yang sudah diperbaiki.',
+                ]);
+
+            $this->fail('The lecturer notification insert should fail.');
+        } catch (QueryException) {
+            // Expected: the logbook update must roll back with the notification.
+        }
+
+        $this->assertDatabaseHas('logbooks', [
+            'id' => $logbook->id,
+            'status' => 'revision_requested',
+            'catatan_dosen' => 'Mohon lengkapi hasil kegiatan.',
+            'judul_kegiatan' => 'Pemeriksaan jaringan',
+            'deskripsi_kegiatan' => 'Pengujian endpoint notifikasi.',
+        ]);
+        $this->assertDatabaseCount('notifications', 0);
+    }
+
     public function test_logbook_review_notifies_the_student(): void
     {
         $student = $this->makeUser('mahasiswa');
