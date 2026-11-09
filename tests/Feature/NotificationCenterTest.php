@@ -108,6 +108,36 @@ class NotificationCenterTest extends TestCase
         $this->assertDatabaseCount('notifications', 1);
     }
 
+    public function test_idempotency_key_cannot_be_reused_for_a_different_pkl(): void
+    {
+        $student = $this->makeUser('mahasiswa');
+        $lecturer = $this->makeUser('dosen');
+        $coordinator = $this->makeUser('korlap');
+        $firstPkl = $this->makePkl($student, $lecturer, $coordinator);
+        $secondPkl = $this->makePkl($student, $lecturer, $coordinator);
+
+        $payload = [
+            'idempotency_key' => '4a8dd865-24df-4d22-a9d1-6a8f75d4c110',
+            'tanggal_kegiatan' => now()->toDateString(),
+            'judul_kegiatan' => 'Pemeriksaan jaringan',
+            'deskripsi_kegiatan' => 'Memeriksa konfigurasi switch.',
+        ];
+
+        $this->actingAs($student, 'sanctum')
+            ->postJson('/api/logbooks', $payload + ['pkl_id' => $firstPkl->id])
+            ->assertCreated();
+
+        $this->postJson('/api/logbooks', $payload + ['pkl_id' => $secondPkl->id])
+            ->assertStatus(409)
+            ->assertJsonPath(
+                'message',
+                'Kunci pengiriman sudah digunakan oleh data lain.'
+            );
+
+        $this->assertDatabaseCount('logbooks', 1);
+        $this->assertDatabaseCount('notifications', 1);
+    }
+
     public function test_logbook_review_notifies_the_student(): void
     {
         $student = $this->makeUser('mahasiswa');
