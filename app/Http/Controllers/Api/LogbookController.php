@@ -4,7 +4,10 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Logbook;
+use App\Notifications\StudentLogbookSubmitted;
 use Illuminate\Http\Request;
+use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Intervention\Image\ImageManager;
@@ -115,6 +118,7 @@ class LogbookController extends Controller
     {
         $validated = $request->validate([
             'pkl_id' => 'required|exists:pkls,id',
+            'idempotency_key' => 'nullable|uuid',
             'judul_kegiatan' => 'required|string|max:255',
             'deskripsi_kegiatan' => 'required|string|max:5000',
             'foto' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:10240',
@@ -132,6 +136,27 @@ class LogbookController extends Controller
             return response()->json([
                 'message' => 'Kamu tidak memiliki akses ke penempatan PKL ini.',
             ], 403);
+        }
+
+        // Idempotency prevents duplicate rows when a mobile retry follows
+        // a successful server write whose response was lost in transit.
+        if (!empty($validated['idempotency_key'])) {
+            $existing = Logbook::where('idempotency_key', $validated['idempotency_key'])
+                ->first();
+
+            if ($existing) {
+                if ((int) $existing->pkl_id !== (int) $pkl->id) {
+                    return response()->json([
+                        'message' => 'Kunci pengiriman sudah digunakan oleh data lain.',
+                    ], 409);
+                }
+
+                return response()->json([
+                    'message' => 'Logbook ini sudah pernah diterima.',
+                    'data' => $existing,
+                    'duplicate' => true,
+                ]);
+            }
         }
 
         // LOGBOOK BARU HANYA BOLEH DIKIRIM SAAT PKL BERLANGSUNG
@@ -171,18 +196,66 @@ class LogbookController extends Controller
         }
 
         try {
-            $logbook = Logbook::create([
-                'pkl_id' => $pkl->id,
-                'tanggal_kegiatan' => $validated['tanggal_kegiatan'],
-                'judul_kegiatan' => $validated['judul_kegiatan'],
-                'deskripsi_kegiatan' => $validated['deskripsi_kegiatan'],
-                'foto' => $fotoPath,
-                'latitude' => $validated['latitude'] ?? null,
-                'longitude' => $validated['longitude'] ?? null,
-                'status' => 'pending',
-            ]);
+            // The logbook row and its database notification must commit or
+            // roll back together. This prevents an accepted logbook from
+            // being left without a lecturer notification after a DB error.
+            $logbook = DB::transaction(function () use ($pkl, $validated, $fotoPath) {
+                $created = Logbook::create([
+                    'pkl_id' => $pkl->id,
+                    'idempotency_key' => $validated['idempotency_key'] ?? null,
+                    'tanggal_kegiatan' => $validated['tanggal_kegiatan'],
+                    'judul_kegiatan' => $validated['judul_kegiatan'],
+                    'deskripsi_kegiatan' => $validated['deskripsi_kegiatan'],
+                    'foto' => $fotoPath,
+                    'latitude' => $validated['latitude'] ?? null,
+                    'longitude' => $validated['longitude'] ?? null,
+                    'status' => 'pending',
+                ]);
+
+                $pkl->loadMissing('dosen', 'mahasiswa');
+                $pkl->dosen?->notify(new StudentLogbookSubmitted(
+                    $created->load('pkl.mahasiswa')
+                ));
+
+                return $created;
+            });
+        } catch (QueryException $e) {
+            // A concurrent retry can pass the initial lookup before the
+            // first request commits. The unique index arbitrates the race;
+            // reconcile the winner instead of surfacing a duplicate error.
+            if ($fotoPath !== null) {
+                Storage::disk('local')->delete($fotoPath);
+            }
+
+            $sqlState = $e->errorInfo[0] ?? (string) $e->getCode();
+            $driverCode = $e->errorInfo[1] ?? null;
+            $isUniqueViolation = in_array($sqlState, ['23000', '23505'], true)
+                || in_array((int) $driverCode, [19, 1062], true);
+
+            if ($isUniqueViolation && !empty($validated['idempotency_key'])) {
+                $existing = Logbook::where(
+                    'idempotency_key',
+                    $validated['idempotency_key']
+                )->first();
+
+                if ($existing) {
+                    if ((int) $existing->pkl_id !== (int) $pkl->id) {
+                        return response()->json([
+                            'message' => 'Kunci pengiriman sudah digunakan oleh data lain.',
+                        ], 409);
+                    }
+
+                    return response()->json([
+                        'message' => 'Logbook ini sudah pernah diterima.',
+                        'data' => $existing,
+                        'duplicate' => true,
+                    ]);
+                }
+            }
+
+            throw $e;
         } catch (\Throwable $e) {
-            // HAPUS FOTO JIKA PEMBUATAN LOGBOOK GAGAL
+            // Hapus foto jika transaksi logbook/notifikasi gagal.
             if ($fotoPath !== null) {
                 Storage::disk('local')->delete($fotoPath);
             }

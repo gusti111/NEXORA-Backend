@@ -161,6 +161,18 @@ Protected routes use `auth:sanctum` together with role middleware. Active-accoun
 
 See `routes/api.php` for the canonical route definitions and middleware.
 
+### Idempotent submissions and in-app notifications
+
+- Mobile submissions may include an `idempotency_key` UUID. The backend stores it on the logbook under a unique constraint.
+- Replaying the same key for the same PKL returns the already-created logbook with HTTP `200` and `duplicate: true`; it does not create a second logbook or send another submission notification.
+- Logbook creation and the lecturer's database notification are committed in one database transaction; a notification-write failure rolls back the logbook insert so a retry can safely start again.
+- Concurrent requests using the same key are arbitrated by the database unique index and reconciled to the already-created record.
+- A key already bound to a different PKL is rejected with HTTP `409`.
+- The assigned lecturer receives a database notification when a new logbook is accepted.
+- The student receives a database notification after the lecturer records an approval, revision request, or rejection.
+- Authenticated notification endpoints: `GET /api/notifications`, `GET /api/notifications/unread-count`, `PATCH /api/notifications/{id}/read`, and `PATCH /api/notifications/read-all`.
+- Notification queries and read-state updates are scoped to the authenticated user.
+- Notifications are currently stored in Laravel's database notification table and displayed inside the mobile app. FCM/APNs push delivery is not configured in this phase.
 ## Logbook workflow and data rules
 
 1. An administrator creates a PKL placement and assigns the student, lecturer, and coordinator.
@@ -206,6 +218,9 @@ Current feature tests cover:
 - Student logbook ownership isolation.
 - Lecturer review ownership isolation.
 - Logbook activity-title mass assignment regression.
+- Database notification delivery for submission and review events.
+- Notification inbox ownership, unread count, and read-state transitions.
+- Idempotent submission replay, including after the PKL placement has been completed.
 
 ## Continuous integration
 
@@ -219,4 +234,4 @@ Workflow: `.github/workflows/laravel-ci.yml`.
 
 ## Project status
 
-NEXORA is under active development. Review API contracts, database migrations, file-privacy requirements, and deployment configuration before production releases.
+NEXORA is under active development. Review API contracts, database migrations, file-privacy requirements, notification retention, and deployment configuration before production releases.

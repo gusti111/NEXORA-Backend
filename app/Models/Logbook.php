@@ -10,6 +10,7 @@ class Logbook extends Model
 {
     protected $fillable = [
         'pkl_id',
+        'idempotency_key',
         'tanggal_kegiatan',
         'judul_kegiatan',
         'deskripsi_kegiatan',
