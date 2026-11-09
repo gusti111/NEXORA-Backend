@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Logbook;
 use App\Models\LogbookReview;
+use App\Notifications\LogbookReviewed;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -81,6 +82,9 @@ class DosenLogbookController extends Controller
                 'message' => 'Logbook hanya dapat diperiksa jika berstatus pending.',
             ], 422);
         }
+
+        $result->loadMissing('pkl.mahasiswa');
+        $result->pkl?->mahasiswa?->notify(new LogbookReviewed($result));
 
         return response()->json([
             'message' => 'Pemeriksaan logbook berhasil disimpan.',
