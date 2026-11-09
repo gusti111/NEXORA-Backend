@@ -59,7 +59,7 @@ class LogbookController extends Controller
         $filename = Str::uuid() . '.jpg';
         $path = 'logbooks/' . $filename;
 
-        $saved = Storage::disk('public')->put(
+        $saved = Storage::disk('local')->put(
             $path,
             (string) $encoded
         );
@@ -184,7 +184,7 @@ class LogbookController extends Controller
         } catch (\Throwable $e) {
             // HAPUS FOTO JIKA PEMBUATAN LOGBOOK GAGAL
             if ($fotoPath !== null) {
-                Storage::disk('public')->delete($fotoPath);
+                Storage::disk('local')->delete($fotoPath);
             }
 
             throw $e;
@@ -331,7 +331,7 @@ class LogbookController extends Controller
         } catch (\Throwable $e) {
             // HAPUS FOTO BARU JIKA UPDATE DATABASE GAGAL
             if ($newFotoPath !== null) {
-                Storage::disk('public')->delete($newFotoPath);
+                Storage::disk('local')->delete($newFotoPath);
             }
 
             throw $e;
@@ -339,12 +339,68 @@ class LogbookController extends Controller
 
         // HAPUS FOTO LAMA SETELAH UPDATE BERHASIL
         if ($newFotoPath !== null && $oldFotoPath) {
-            Storage::disk('public')->delete($oldFotoPath);
+            Storage::disk('local')->delete($oldFotoPath);
         }
 
         return response()->json([
             'message' => 'Logbook berhasil diperbaiki dan dikirim ulang.',
             'data' => $logbook->fresh(),
+        ]);
+    }
+
+    // FOTO LOGBOOK DIKIRIM HANYA KEPADA PENGGUNA YANG BERHAK
+    public function photo(Request $request, string $id)
+    {
+        $user = $request->user();
+        $query = Logbook::query()->whereKey($id);
+
+        // Role access is not enough: enforce ownership / assigned placement.
+        switch ($user->role) {
+            case 'mahasiswa':
+                $query->whereHas('pkl', function ($q) use ($user) {
+                    $q->where('mahasiswa_id', $user->id);
+                });
+                break;
+
+            case 'dosen':
+                $query->whereHas('pkl', function ($q) use ($user) {
+                    $q->where('dosen_id', $user->id);
+                });
+                break;
+
+            case 'korlap':
+                $query->whereHas('pkl', function ($q) use ($user) {
+                    $q->where('korlap_id', $user->id);
+                });
+                break;
+
+            case 'admin':
+                // Administrators may inspect logbook evidence across placements.
+                break;
+
+            default:
+                abort(403);
+        }
+
+        // Return 404 for both an unknown logbook and a record outside the
+        // caller's scope so record existence is not disclosed.
+        $logbook = $query->firstOrFail();
+        $path = $logbook->foto;
+
+        if (!$path || !Str::startsWith($path, 'logbooks/')) {
+            abort(404);
+        }
+
+        $disk = Storage::disk('local');
+
+        if (!$disk->exists($path)) {
+            abort(404);
+        }
+
+        return response()->file($disk->path($path), [
+            'Content-Type' => 'image/jpeg',
+            'Cache-Control' => 'private, no-store, max-age=0',
+            'X-Content-Type-Options' => 'nosniff',
         ]);
     }
 
