@@ -45,6 +45,21 @@ The backend separates authentication, role checks, assignment ownership, logbook
             ▼
        MySQL or SQLite
 
+## API request and authorization flow
+
+```mermaid
+flowchart TD
+    A["Flutter client sends API request"] --> B["Sanctum token authentication"]
+    B --> C["Check active account and role"]
+    C --> D["Verify resource ownership or assignment"]
+    D --> E{"Authorized and valid?"}
+    E -->|No| F["Return controlled error response"]
+    E -->|Yes| G["Execute controller and domain workflow"]
+    G --> H["Persist transaction and related records"]
+    H --> I["Create in-app notification when required"]
+    I --> J["Return API response"]
+```
+
 ## Technology
 
 - PHP 8.2+
